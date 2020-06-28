@@ -59,12 +59,18 @@ def main():
                 steps_per_second = (tf_global_step - initial_step) / (time.time() - initial_time)
 
                 average_loss = accumulated_loss / report_frequency
-                logger.info("[{}] loss={:.2f}, steps/s={:.2f}".format(tf_global_step, average_loss, steps_per_second))
+                logger.info("[{}] avg_loss={:.2f}, cur_loss={:.2f}, steps/s={:.2f}".format(tf_global_step,
+                                                                                           average_loss,
+                                                                                           tf_loss,
+                                                                                           steps_per_second))
                 writer.add_summary(util.make_summary({"loss": average_loss}), tf_global_step)
                 accumulated_loss = 0.0
 
             if tf_global_step % eval_frequency == 0:
-                eval_summary, eval_f1 = model.evaluate(session)
+                if config.mention_proposal_only:
+                    eval_summary, eval_f1 = model.evaluate_mention_proposal(session)
+                else:
+                    eval_summary, eval_f1 = model.evaluate(session)
 
                 if eval_f1 > max_f1:
                     max_f1 = eval_f1
