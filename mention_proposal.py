@@ -85,7 +85,7 @@ class MentionProposalModel(object):
         if self.config["tpu"]:
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config['bert_learning_rate'])
             optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
-            self.train_op=optimizer.minimize(loss, tf.train.get_global_step())
+            self.train_op=optimizer.minimize(self.loss, tf.train.get_global_step())
         else:
             self.train_op = optimization.create_custom_optimizer(tvars, self.loss, self.config['bert_learning_rate'],
                                                              self.config['task_learning_rate'],
