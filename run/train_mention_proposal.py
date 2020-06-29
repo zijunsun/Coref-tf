@@ -32,7 +32,7 @@ flags.DEFINE_string("tpu_zone", None, "[Optional] GCE zone where the Cloud TPU i
 flags.DEFINE_string("gcp_project", None, "[Optional] Project name for the Cloud TPU-enabled project. If not "
                        "specified, we will attempt to automatically detect the GCE project from metadata.")
 flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
-flags.DEFINE_integer("num_tpu_cores", 8, "Only used if `use_tpu` is True. Total number of TPU cores to use.")
+flags.DEFINE_integer("num_tpu_cores", 1, "Only used if `use_tpu` is True. Total number of TPU cores to use.")
 #FLAGS = tf.flags.FLAGS
 
 
