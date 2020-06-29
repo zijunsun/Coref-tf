@@ -60,7 +60,7 @@ class MentionProposalModel(object):
         self.enqueue_op = queue.enqueue(self.queue_input_tensors)
         self.input_tensors = queue.dequeue()  # self.queue_input_tensors 不一样？
 
-
+        self.bce_loss = tf.keras.losses.BinaryCrossentropy()
         self.loss, self.pred_mention_labels, self.gold_mention_labels = self.get_mention_proposal_and_loss(*self.input_tensors)
 
         # bert stuff
