@@ -83,9 +83,9 @@ class MentionProposalModel(object):
         num_warmup_steps = int(num_train_steps * 0.1)  # 前1/10做warm_up
         self.global_step = tf.train.get_or_create_global_step()  # 根据不同的model得到不同的optimizer
         # if self.config["tpu"]:
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config['bert_learning_rate'])
-        self.optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
-        self.train_op = self.optimizer.minimize(self.loss, tf.train.get_global_step())
+        ### optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config['bert_learning_rate'])
+        ### self.optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
+        ####  self.train_op = self.optimizer.minimize(self.loss, tf.train.get_global_step())
         # else:
         #     self.train_op = optimization.create_custom_optimizer(tvars, self.loss, self.config['bert_learning_rate'],
         #                                                      self.config['task_learning_rate'],

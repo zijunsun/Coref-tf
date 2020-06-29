@@ -61,8 +61,12 @@ def model_fn_builder(config):
            
         if mode == tf.estimator.ModeKeys.TRAIN:
             tf.logging.info("**** Trainable Variables ****")
-
-            train_op = model.train_op 
+            # optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config['bert_learning_rate'])
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=config['bert_learning_rate'])
+            optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
+            train_op = optimizer.minimize(self.loss, tf.train.get_global_step()) 
+            # train_op = model.train_op 
+            # prediction, total_loss = model.get_predictions_and_loss() 
             total_loss = model.loss 
             output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
