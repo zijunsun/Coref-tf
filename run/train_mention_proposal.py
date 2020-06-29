@@ -43,6 +43,16 @@ def model_fn_builder(config):
         """The `model_fn` for TPUEstimator."""
         config = util.initialize_from_env()
 
+        input_ids =  features["flattened_input_ids"]
+        input_mask  = features["flattened_input_mask"]
+        text_len = features["text_len"]
+        speaker_ids = features["speaker_ids"]
+        genre = features["genre"]
+        gold_starts = features["span_starts"]
+        gold_ends = features["span_ends"]
+        cluster_ids = features["cluster_ids"]
+        sentence_map = features["sentence_map"]
+
         tf.logging.info("*** Features ***")
         for name in sorted(features.keys()):
             tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
@@ -64,7 +74,9 @@ def model_fn_builder(config):
             # optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config['bert_learning_rate'])
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=config['bert_learning_rate'])
             optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
-            total_loss = model.loss 
+            predictions, total_loss = model.get_predictions_and_loss(input_ids, input_mask, \
+                text_len, speaker_ids, genre, is_training, gold_starts,
+                gold_ends, cluster_ids, sentence_map)
             train_op = optimizer.minimize(total_loss, tf.train.get_global_step()) 
             # train_op = model.train_op 
             # prediction, total_loss = model.get_predictions_and_loss() 
