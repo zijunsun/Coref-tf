@@ -618,12 +618,15 @@ class MentionProposalModel(object):
 
         # candidate_span: 每个位置都可能是起点，对每个起点有max_span_width种不同的终点，总共有(num_words, max_span_width)种可能
         candidate_starts = tf.tile(tf.expand_dims(tf.range(num_words), 1), [1, self.max_span_width])
+        candidate_starts = tf.cast(candidate_starts, tf.int32) 
         candidate_ends = candidate_starts + tf.expand_dims(tf.range(self.max_span_width), 0)
 
         # [num_words, max_span_width]，根据index将对应位置的sentence_id取出来
         candidate_start_sentence_indices = tf.gather(sentence_map, candidate_starts)
         #  candidate_end_sentence_indices = tf.gather(sentence_map, tf.minimum(candidate_ends, num_words - 1))
-        candidate_end_sentence_indices = tf.gather(sentence_map, tf.minimum(candidate_ends, num_words - 1))
+        ##########. ####
+        #  candidate_end_sentence_indices = tf.gather(sentence_map, tf.minimum(candidate_ends, num_words - 1))
+        candidate_end_sentence_indices = tf.gather(sentence_map, candidate_ends)
         # [num_words, max_span_width]，合法的span需要满足start/end不能越界；start/end必须在同一个句子里
         candidate_mask = tf.logical_and(candidate_ends < num_words,
                                         tf.equal(candidate_start_sentence_indices, candidate_end_sentence_indices))
