@@ -61,7 +61,7 @@ class MentionProposalModel(object):
         self.input_tensors = queue.dequeue()  # self.queue_input_tensors 不一样？
 
         self.bce_loss = tf.keras.losses.BinaryCrossentropy()
-        self.loss, self.pred_mention_labels, self.gold_mention_labels = self.get_mention_proposal_and_loss(*self.input_tensors)
+        ########self.loss, self.pred_mention_labels, self.gold_mention_labels = self.get_mention_proposal_and_loss(*self.input_tensors)
 
         # bert stuff
         tvars = tf.trainable_variables()
@@ -417,7 +417,10 @@ class MentionProposalModel(object):
         same_end = tf.equal(tf.expand_dims(labeled_ends, 1), tf.expand_dims(candidate_ends, 0))
         same_span = tf.logical_and(same_start, same_end)
         # candidate_labels: [num_candidates] 预测对的candidate标上正确的cluster_id，预测错的标0
-        candidate_labels = tf.matmul(tf.expand_dims(labels, 0), tf.to_int32(same_span))  # [1, num_candidates]
+        labels = tf.reshape(labels, [-1])
+        same_span = tf.reshape(same_span, [-1])
+        # if not do the following two step 
+        candidate_labels = tf.matmul(tf.expand_dims(labels, 0), tf.expand_dims(tf.to_int32(same_span), 1))  # [1, num_candidates]
         candidate_labels = tf.squeeze(candidate_labels, 0)  # [num_candidates]
         return candidate_labels # 每个候选答案得到真实标注的cluster_id
 
@@ -436,12 +439,13 @@ class MentionProposalModel(object):
         span_width = 1 + span_ends - span_starts  # [k]
 
         if self.config["use_features"]:
-            span_width_index = span_width - 1  # [k]
-            span_width_emb = tf.gather(
-                tf.get_variable("span_width_embeddings", [self.config["max_span_width"], self.config["feature_size"]],
-                                initializer=tf.truncated_normal_initializer(stddev=0.02)), span_width_index)  # [k, emb]
-            span_width_emb = tf.nn.dropout(span_width_emb, self.dropout)
-            span_emb_list.append(span_width_emb)
+            with tf.variable_scope("use_features", reuse=tf.AUTO_REUSE):
+                span_width_index = span_width - 1  # [k]
+                span_width_emb = tf.gather(
+                    tf.get_variable("span_width_embeddings", [self.config["max_span_width"], self.config["feature_size"]],
+                                initializer=tf.truncated_normal_initializer(stddev=0.02)), span_width_index, )  # [k, emb]
+                span_width_emb = tf.nn.dropout(span_width_emb, self.dropout)
+                span_emb_list.append(span_width_emb)
 
         if self.config["model_heads"]:
             mention_word_scores = self.get_masked_mention_word_scores(context_outputs, span_starts, span_ends)
@@ -457,21 +461,21 @@ class MentionProposalModel(object):
         doc_range = tf.tile(tf.expand_dims(tf.range(0, num_words), 0), [num_c, 1])  # [num_candidates, num_words]
         mention_mask = tf.logical_and(doc_range >= tf.expand_dims(span_starts, 1),
                                       doc_range <= tf.expand_dims(span_ends, 1))  # [num_candidates, num_words]
-        with tf.variable_scope("mention_word_attn"):
+        with tf.variable_scope("mention_word_attn", reuse=tf.AUTO_REUSE):
             word_attn = tf.squeeze(
                 util.projection(encoded_doc, 1, initializer=tf.truncated_normal_initializer(stddev=0.02)), 1)
         mention_word_attn = tf.nn.softmax(tf.log(tf.to_float(mention_mask)) + tf.expand_dims(word_attn, 0))
         return mention_word_attn  # [num_candidates, num_words]
 
     def get_mention_scores(self, span_emb, span_starts, span_ends):
-        with tf.variable_scope("mention_scores"):  # [k, 1] 每个候选span的得分
+        with tf.variable_scope("mention_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
             span_scores = util.ffnn(span_emb, self.config["ffnn_depth"], self.config["ffnn_size"], 1, self.dropout)
         if self.config['use_prior']:
             span_width_emb = tf.get_variable("span_width_prior_embeddings",
                                              [self.config["max_span_width"], self.config["feature_size"]],
                                              initializer=tf.truncated_normal_initializer(stddev=0.02))  # [W, emb]
             span_width_index = span_ends - span_starts  # [NC]
-            with tf.variable_scope("width_scores"):
+            with tf.variable_scope("width_scores", reuse=tf.AUTO_REUSE):
                 width_scores = util.ffnn(span_width_emb, self.config["ffnn_depth"], self.config["ffnn_size"], 1,
                                          self.dropout)  # [W, 1]
             width_scores = tf.gather(width_scores, span_width_index)
@@ -508,7 +512,7 @@ class MentionProposalModel(object):
         return top_antecedents, top_antecedents_mask, top_fast_antecedent_scores, top_antecedent_offsets
 
     def get_fast_antecedent_scores(self, top_span_emb):  # emb_i * W * emb_j 算的分
-        with tf.variable_scope("src_projection"):
+        with tf.variable_scope("src_projection", reuse=tf.AUTO_REUSE):
             source_top_span_emb = tf.nn.dropout(util.projection(top_span_emb, util.shape(top_span_emb, -1)),
                                                 self.dropout)  # [k, emb]
         target_top_span_emb = tf.nn.dropout(top_span_emb, self.dropout)  # [k, emb]
@@ -611,6 +615,11 @@ class MentionProposalModel(object):
             input_mask=input_mask,
             use_one_hot_embeddings=False,
             scope='bert')
+
+        # tf.debugging.assert_rank(input_ids, 2, message="input_ids should have rank 2")
+        # tf.debugging.assert_rank(sentence_map, 2, message="sentence_map should have rank 2")
+
+
         self.dropout = self.get_dropout(self.config["dropout_rate"], is_training)
         mention_doc = model.get_sequence_output()  # (batch_size, seq_len, hidden)
         mention_doc = self.flatten_emb_by_sentence(mention_doc, input_mask)  # (b, s, e) -> (b*s, e) 取出有效token的emb
@@ -621,15 +630,27 @@ class MentionProposalModel(object):
         candidate_starts = tf.cast(candidate_starts, tf.int32) 
         candidate_ends = candidate_starts + tf.expand_dims(tf.range(self.max_span_width), 0)
 
+        # transform [1, 128] to [128]
+        sentence_map = tf.reshape(sentence_map, [-1])
         # [num_words, max_span_width]，根据index将对应位置的sentence_id取出来
         candidate_start_sentence_indices = tf.gather(sentence_map, candidate_starts)
         #  candidate_end_sentence_indices = tf.gather(sentence_map, tf.minimum(candidate_ends, num_words - 1))
         ##########. ####
         #  candidate_end_sentence_indices = tf.gather(sentence_map, tf.minimum(candidate_ends, num_words - 1))
         candidate_end_sentence_indices = tf.gather(sentence_map, candidate_ends)
+
+        # tf.debugging.
+        # tf.debugging.assert_rank(x, rank, message=None, name=None)
+        tf.debugging.assert_rank(candidate_starts, 2, message="candidate_starts")
+        tf.debugging.assert_rank(candidate_ends, 2, message="candidate_ends")
+        # tf.debugging.assert_rank(candidate_start_sentence_indices, 2, message="2 candidate_start_sentence_indices")
+        # tf.debugging.assert_rank(candidate_start_sentence_indices, 3, message="3 candidate_start_sentence_indices")
+        # tf.debugging.assert_rank(candidate_end_sentence_indices, 3, message="candidate_end_sentence_indices")
+
         # [num_words, max_span_width]，合法的span需要满足start/end不能越界；start/end必须在同一个句子里
         candidate_mask = tf.logical_and(candidate_ends < num_words,
                                         tf.equal(candidate_start_sentence_indices, candidate_end_sentence_indices))
+
         flattened_candidate_mask = tf.reshape(candidate_mask, [-1])  # [num_words * max_span_width]
         # [num_candidates] 把候选span mask掉再铺平
         candidate_starts = tf.boolean_mask(tf.reshape(candidate_starts, [-1]), flattened_candidate_mask)

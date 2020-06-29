@@ -49,12 +49,9 @@ def write_instance_to_example_file(writer, instance, doc_key):
     # print(cluster_ids )
     # print("check cluster ids ")
     # exit()
-    #  input_ids, input_mask,   genre,  
+    # input_ids, input_mask,   genre,  
     # print(subtoken_maps)
     # print("check subtoken map")
-    # exit()
-    # print("check speaker ids")
-    # print(speaker_ids)
     # exit()
     features = {
         'sentence_map': create_int_feature(sentence_map), # 
@@ -128,13 +125,13 @@ def tensorize_example(example, config, tokenizer, is_training):
     example_tensors = (input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends,
                            cluster_ids, sentence_map)
 
-    if is_training and len(sentences) > config["max_training_sentences"]:
-        if config['single_example']:
-            return truncate_example(config, *example_tensors)
-        else:
-            offsets = range(config['max_training_sentences'], len(sentences), config['max_training_sentences'])
-            tensor_list = [truncate_example(config, *(example_tensors + (offset,))) for offset in offsets]
-            return tensor_list
+    if  len(sentences) > config["max_training_sentences"]:
+        # if config['single_example']:
+        return truncate_example(config, *example_tensors)
+        # else:
+        #     offsets = range(config['max_training_sentences'], len(sentences), config['max_training_sentences'])
+        #     tensor_list = [truncate_example(config, *(example_tensors + (offset,))) for offset in offsets]
+        #     return tensor_list
     else:
         return example_tensors
 
@@ -188,7 +185,7 @@ if __name__ == '__main__':
     language = "english"
     vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
     filename = "test.english.128.jsonlines"
-    filename = "train.english.128.jsonlines"
+    # filename = "dev.english.128.jsonlines"
     sliding_window_size = 128
     prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
 

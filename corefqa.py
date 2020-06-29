@@ -317,6 +317,11 @@ class CorefModel(object):
         mention_doc = self.flatten_emb_by_sentence(mention_doc, input_mask)  # (b, s, e) -> (b*s, e) 取出有效token的emb
         num_words = util.shape(mention_doc, 0)  # b*s
 
+
+        ################ 
+        tf.debugging.assert_rank(sentence_map, 2, message="sentence_map should have rank 2")
+        ################ 
+
         # candidate_span: 每个位置都可能是起点，对每个起点有max_span_width种不同的终点，总共有(num_words, max_span_width)种可能
         candidate_starts = tf.tile(tf.expand_dims(tf.range(num_words), 1), [1, self.max_span_width])
         candidate_ends = candidate_starts + tf.expand_dims(tf.range(self.max_span_width), 0)

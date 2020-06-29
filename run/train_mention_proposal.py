@@ -7,7 +7,9 @@ from __future__ import print_function
 import logging
 import tensorflow as tf
 import util
+from radam import RAdam
 from input_builder import file_based_input_fn_builder
+
 
 format = '%(asctime)s - %(levelname)s - %(name)s - %(message)s'
 logging.basicConfig(format=format)
@@ -69,39 +71,45 @@ def model_fn_builder(config):
         else:
             scaffold_fn = None 
            
-        if mode == tf.estimator.ModeKeys.TRAIN:
-            tf.logging.info("**** Trainable Variables ****")
-            # optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config['bert_learning_rate'])
+        # if mode == tf.estimator.ModeKeys.TRAIN:
+        tf.logging.info("**** Trainable Variables ****")
+        # optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config['bert_learning_rate'])
+        total_loss, pred_mention_labels, gold_mention_labels = model.get_mention_proposal_and_loss(input_ids, input_mask, \
+                text_len, speaker_ids, genre, is_training, gold_starts,
+                gold_ends, cluster_ids, sentence_map)
+
+        if config["tpu"]:
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=config['bert_learning_rate'])
             optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
             # predictions, total_loss = model.get_predictions_and_loss(input_ids, input_mask, \
             #     text_len, speaker_ids, genre, is_training, gold_starts,
             #     gold_ends, cluster_ids, sentence_map)
-
-            total_loss, pred_mention_labels, gold_mention_labels = model.get_mention_proposal_and_loss(input_ids, input_mask, \
-                text_len, speaker_ids, genre, is_training, gold_starts,
-                gold_ends, cluster_ids, sentence_map)
             train_op = optimizer.minimize(total_loss, tf.train.get_global_step()) 
             # train_op = model.train_op 
             # prediction, total_loss = model.get_predictions_and_loss() 
-            output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+        else:
+            optimizer = RAdam(learning_rate=config['bert_learning_rate'], epsilon=1e-8, beta1=0.9, beta2=0.999)
+            train_op = optimizer.minimize(total_loss, tf.train.get_global_step())
+
+        output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
                 loss=total_loss,
                 train_op=train_op,
                 scaffold_fn=scaffold_fn)
 
-        else:
-            is_training = (mode == tf.estimator.ModeKeys.TRAIN)
+        # else:
+            # is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
-            def metric_fn(loss):
-                summary_dict, average_f1 =  model.evaluate(features, is_training)
-                return summary_dict, average_f1
-            eval_metrics = (metric_fn, [total_loss])
-            output_spec = tf.contrib.tpu.TPUEstimatorSpec(
-                mode=mode,
-                loss=total_loss,
-                eval_metrics=eval_metrics,
-                scaffold_fn=scaffold_fn)
+            # def metric_fn(loss):
+            #    summary_dict, average_f1 =  model.evaluate(features, is_training)
+            #     return summary_dict, average_f1
+            # eval_metrics = (metric_fn, [total_loss])
+            # output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+            #     mode=mode,
+            #     loss=total_loss,
+            #     eval_metrics=eval_metrics,
+            #     scaffold_fn=scaffold_fn)
+
         return output_spec
 
     return model_fn
@@ -143,8 +151,10 @@ def main():
         train_batch_size=1,
         predict_batch_size=1)
 
+    seq_length = config["max_segment_len"]
+
     if FLAGS.do_train:
-        estimator.train(input_fn=file_based_input_fn_builder(config["train_path"] ,config, is_training=True, drop_remainder=True), max_steps=20000)
+        estimator.train(input_fn=file_based_input_fn_builder(config["train_path"], seq_length, config, is_training=True, drop_remainder=True), max_steps=20000)
 
 
 if __name__ == '__main__':

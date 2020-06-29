@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-def file_based_input_fn_builder(input_file, config, is_training, drop_remainder, preprocess=True):
+def file_based_input_fn_builder(input_file, seq_length, config, is_training, drop_remainder, preprocess=True):
     """Creates an `input_fn` closure to be passed to TPUEstimator."""
 
     def input_fn_from_tfrecord(params):
@@ -16,16 +16,16 @@ def file_based_input_fn_builder(input_file, config, is_training, drop_remainder,
             d = d.shuffle(buffer_size=100)
 
         name_to_features = {
-            'sentence_map': tf.FixedLenFeature([128], tf.int64),
-            'text_len': tf.FixedLenFeature([128], tf.int64),
-            'subtoken_map': tf.FixedLenFeature([128], tf.int64),
-            'speaker_ids': tf.FixedLenFeature([128], tf.int64),
-            'flattened_input_ids': tf.FixedLenFeature([128], tf.int64),
-            'flattened_input_mask': tf.FixedLenFeature([128], tf.int64),
-            'genre': tf.FixedLenFeature([128], tf.int64),
-            'span_starts': tf.FixedLenFeature([128], tf.int64),
-            'span_ends': tf.FixedLenFeature([128], tf.int64), 
-            'cluster_ids': tf.FixedLenFeature([128], tf.int64) }
+            'sentence_map': tf.FixedLenFeature([seq_length], tf.int64),
+            'text_len': tf.FixedLenFeature([seq_length], tf.int64),
+            'subtoken_map': tf.FixedLenFeature([seq_length], tf.int64),
+            'speaker_ids': tf.FixedLenFeature([seq_length], tf.int64),
+            'flattened_input_ids': tf.FixedLenFeature([seq_length], tf.int64),
+            'flattened_input_mask': tf.FixedLenFeature([seq_length], tf.int64),
+            'genre': tf.FixedLenFeature([seq_length], tf.int64),
+            'span_starts': tf.FixedLenFeature([seq_length], tf.int64),
+            'span_ends': tf.FixedLenFeature([seq_length], tf.int64), 
+            'cluster_ids': tf.FixedLenFeature([seq_length], tf.int64) }
 
         def _decode_features(record):
             """Decodes a record to a TensorFlow example."""
