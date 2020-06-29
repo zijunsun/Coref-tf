@@ -373,8 +373,8 @@ class CorefModel(object):
 
         forward_qa_emb = tf.boolean_mask(forward_qa_emb, batch_qa_output_mask) # (num_win * k, window_size)
         forward_qa_emb = tf.reshape(forward_qa_emb, [k*k, -1])
-        forward_qa_start_emb = tf.gather(forward_qa_emb, top_span_starts) # (k, k,  emb) ??? 
-        forward_qa_end_emb = tf.gather(forward_qa_emb, top_span_ends) # (k, k, emb) ??? 
+        forward_qa_start_emb = tf.gather(forward_qa_emb, top_span_starts) # (k, k,  emb) 
+        forward_qa_end_emb = tf.gather(forward_qa_emb, top_span_ends) # (k, k, emb) 
         forward_qa_span_emb = tf.concat([forward_qa_start_emb, forward_qa_end_emb], -1) # (k, k, emb * 2)
 
         forward_i_j_score = util.ffnn(forward_qa_span_emb, self.config["ffnn_depth"], self.config["ffnn_size"], 1, self.dropout) # (k, k) ??? 
@@ -438,8 +438,8 @@ class CorefModel(object):
 
         backward_qa_emb = tf.boolean_mask(backward_qa_emb, batch_backward_qa_output_mask) # (k*c, sentence_len)
 
-        backward_qa_start_emb = tf.gather(backward_qa_emb, batch_mention_start_idx) # (k*c,  emb) ??? 
-        backward_qa_end_emb = tf.gather(backward_qa_emb, batch_mention_end_idx) # (k*c, emb) ??? 
+        backward_qa_start_emb = tf.gather(backward_qa_emb, batch_mention_start_idx) # (k*c,  emb)  
+        backward_qa_end_emb = tf.gather(backward_qa_emb, batch_mention_end_idx) # (k*c, emb) 
         backward_qa_span_emb = tf.concat([backward_qa_start_emb, backward_qa_end_emb], -1) # (k*c, emb * 2)
         backward_j_i_score = util.ffnn(backward_qa_span_emb, self.config["ffnn_depth"], self.config["ffnn_size"], 1, self.dropout) # (c*k) ??? 
 
