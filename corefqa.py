@@ -42,16 +42,17 @@ class CorefModel(object):
         self.tokenizer = tokenization.FullTokenizer(vocab_file=config['vocab_file'], do_lower_case=False)
 
         input_props = []
-        input_props.append((tf.int32, [None, None]))
-        input_props.append((tf.int32, [None, None]))
-        input_props.append((tf.int32, [None]))
-        input_props.append((tf.int32, [None, None]))
-        input_props.append((tf.int32, []))
-        input_props.append((tf.bool, []))
-        input_props.append((tf.int32, [None]))
-        input_props.append((tf.int32, [None]))
-        input_props.append((tf.int32, [None]))
-        input_props.append((tf.int32, [None]))
+
+        input_props.append((tf.int32, [None, None]))   # input_ids. (batch_size, seq_len)
+        input_props.append((tf.int32, [None, None]))  # input_mask (batch_size, seq_len)
+        input_props.append((tf.int32, [None]))   # Text lengths.
+        input_props.append((tf.int32, [None, None]))  # Speaker IDs.  (batch_size, seq_len)
+        input_props.append((tf.int32, []))  # Genre.  能确保整个batch都是同主题，能因为一篇文章的多段放在一个batch里
+        input_props.append((tf.bool, []))   # Is training.
+        input_props.append((tf.int32, [None])) # Gold starts. 一个instance只有一个start?是整篇文章的所有mention的start
+        input_props.append((tf.int32, [None]))  # Gold ends. 整篇文章的所有mention的end
+        input_props.append((tf.int32, [None]))  # Cluster ids. 整篇文章的所有mention的id
+        input_props.append((tf.int32, [None]))  # Sentence Map 整篇文章的每个token属于哪个句子
 
         self.queue_input_tensors = [tf.placeholder(dtype, shape) for dtype, shape in input_props]
         dtypes, shapes = zip(*input_props)
@@ -97,7 +98,7 @@ class CorefModel(object):
             train_examples = [json.loads(jsonline) for jsonline in f.readlines()]
 
         def _enqueue_loop():
-            while True:
+            while True: # 每个例子是一篇文章，同一篇文章的所有段落一起做session run
                 random.shuffle(train_examples)
                 if self.config['single_example']:
                     for example in train_examples:
@@ -122,6 +123,7 @@ class CorefModel(object):
         enqueue_thread.start()
 
     def restore(self, session):
+        """在evaluate和predict阶段加载整个模型"""
         # Don't try to restore unused variables from the TF-Hub ELMo module.
         vars_to_restore = [v for v in tf.global_variables()]
         saver = tf.train.Saver(vars_to_restore)
@@ -153,6 +155,13 @@ class CorefModel(object):
 
     def tensorize_example(self, example, is_training):
 
+        """
+        把一篇文章的所有原始特征信息，分片转成tensor
+        :param example:
+        :param is_training:
+        :return:
+        """
+    
         clusters = example["clusters"]
 
         gold_mentions = sorted(tuple(m) for m in util.flatten(clusters))
@@ -162,13 +171,13 @@ class CorefModel(object):
             for mention in cluster:
                 cluster_ids[gold_mention_map[tuple(mention)]] = cluster_id + 1
 
-        sentences = example["sentences"]
+        sentences = example["sentences"] # 多少个滑动窗口
         num_words = sum(len(s) for s in sentences)
         speakers = example["speakers"]
         speaker_dict = self.get_speaker_dict(util.flatten(speakers))
-        sentence_map = example['sentence_map']
+        sentence_map = example['sentence_map'] # 每个token_id对应的sentence_id，标出句子的边界，防止出现跨句的candidate_span
         max_sentence_length = self.max_segment_len
-        text_len = np.array([len(s) for s in sentences])
+        text_len = np.array([len(s) for s in sentences])  # 滑动窗口每个滑块的长度
 
         input_ids, input_mask, speaker_ids = [], [], []
         for i, (sentence, speaker) in enumerate(zip(sentences, speakers)):
@@ -182,18 +191,31 @@ class CorefModel(object):
             input_ids.append(sent_input_ids)
             speaker_ids.append(sent_speaker_ids)
             input_mask.append(sent_input_mask)
-        input_ids = np.array(input_ids)
+
+        input_ids = np.array(input_ids)   # 多个滑动窗口，每个滑动窗口有一个list的tokens
         input_mask = np.array(input_mask)
         speaker_ids = np.array(speaker_ids)
 
-        doc_key = example["doc_key"]
-        self.subtoken_maps[doc_key] = example.get("subtoken_map", None)
+        doc_key = example["doc_key"] # mention span是以sub-token为基准的，但评测时是以token为基准的
+        self.subtoken_maps[doc_key] = example.get("subtoken_map", None)   # sub-token对回原来是第几个单词
         self.gold[doc_key] = example["clusters"]  #
         genre = self.genres.get(doc_key[:2], 0)
 
         gold_starts, gold_ends = self.tensorize_mentions(gold_mentions)
         example_tensors = (input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends,
                            cluster_ids, sentence_map)
+        """
+        input_ids: [3, 128] 切成块的三份input_ids
+        input_mask: [3, 128] 每个token对应的0，1 mask
+        text_len: [3, ] 切成块的三份各自的长度
+        speaker_ids: [3, 128] 每个token对应的speaker_id
+        genre: int 整篇文章的genre
+        is_training: 是否在training阶段
+        gold_starts: [23, ] 每个gold_mention的start_index
+        gold_ends: [23, ] 每个gold_mention的end_index
+        cluster_ids: [23, ] 每个gold_mention对应的cluster_id
+        sentence_map: [257, ] 每个token在原来的第几个句子里
+        """
 
         if is_training and len(sentences) > self.config["max_training_sentences"]:
             if self.config['single_example']:
@@ -208,6 +230,8 @@ class CorefModel(object):
 
     def truncate_example(self, input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends,
                          cluster_ids, sentence_map, sentence_offset=None):
+        """因为显存装不下，训练时对于一篇文章的所有128的doc_span，随机选其中连续的n个做训练，mentions也做相应的截取"""
+
         max_training_sentences = self.config["max_training_sentences"]
         num_sentences = input_ids.shape[0]
         assert num_sentences > max_training_sentences
@@ -230,18 +254,29 @@ class CorefModel(object):
         return input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends, cluster_ids, sentence_map
 
     def get_candidate_labels(self, candidate_starts, candidate_ends, labeled_starts, labeled_ends, labels):
+        # candidate_starts, candidate_ends: [num_candidates, ] 候选span的start_index, end_index
+        # labeled_starts, labeled_ends: [num_mentions, ] 真实span的start_index, end_index
+        # labels: [num_mentions, ] 每个gold_mention对应的cluster_id
+        # same_span: [num_labeled, num_candidates] 哪些预测跟真实span完全一致，如果predict_i == label_j则c[i, j]=1否则为0
         same_start = tf.equal(tf.expand_dims(labeled_starts, 1), tf.expand_dims(candidate_starts, 0))
         same_end = tf.equal(tf.expand_dims(labeled_ends, 1), tf.expand_dims(candidate_ends, 0))
         same_span = tf.logical_and(same_start, same_end)
+        # candidate_labels: [num_candidates] 预测对的candidate标上正确的cluster_id，预测错的标0
         candidate_labels = tf.matmul(tf.expand_dims(labels, 0), tf.to_int32(same_span))  # [1, num_candidates]
         candidate_labels = tf.squeeze(candidate_labels, 0)  # [num_candidates]
-        return candidate_labels
+        return candidate_labels # 每个候选答案得到真实标注的cluster_id
+
 
     def get_dropout(self, dropout_rate, is_training):  # is_training为True时keep=1-drop, 为False时keep=1
         return 1 - (tf.to_float(is_training) * dropout_rate)
 
     def coarse_pruning(self, top_span_emb, top_span_mention_scores, c):
-
+        """在取出的前k个候选span，针对每个span取出前c个antecedent，其mention score得分的组成是
+        1. 每个span的mention score
+        2. emb_i * W * emb_j的得分
+        3. 每个span只取前面的span作为antecedent
+        4. span与antecedent的距离映射为向量算个分
+        """
         k = util.shape(top_span_emb, 0)  # num_candidates
         top_span_range = tf.range(k)  # [num_candidates, ]
         antecedent_offsets = tf.expand_dims(top_span_range, 1) - tf.expand_dims(top_span_range, 0)  # [k, k]
@@ -312,9 +347,9 @@ class CorefModel(object):
 
     def get_predictions_and_loss(self, input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts,
                                  gold_ends, cluster_ids, sentence_map):
-        self.input_ids = input_ids
-        self.input_mask = input_mask
-        self.sentence_map = sentence_map
+        self.input_ids = input_ids 
+        self.input_mask = input_mask 
+        self.sentence_map = sentence_map 
 
         model = modeling.BertModel(
             config=self.bert_config,
@@ -328,21 +363,25 @@ class CorefModel(object):
         mention_doc = self.flatten_emb_by_sentence(mention_doc, input_mask)  # (b, s, e) -> (b*s, e) 取出有效token的emb
         num_words = util.shape(mention_doc, 0)  # b*s
 
+        # candidate_span: 每个位置都可能是起点，对每个起点有max_span_width种不同的终点，总共有(num_words, max_span_width)种可能
         candidate_starts = tf.tile(tf.expand_dims(tf.range(num_words), 1), [1, self.max_span_width])
         candidate_ends = candidate_starts + tf.expand_dims(tf.range(self.max_span_width), 0)
 
+        # [num_words, max_span_width]，根据index将对应位置的sentence_id取出来
         candidate_start_sentence_indices = tf.gather(sentence_map, candidate_starts)
         candidate_end_sentence_indices = tf.gather(sentence_map, tf.minimum(candidate_ends, num_words - 1))
+        # [num_words, max_span_width]，合法的span需要满足start/end不能越界；start/end必须在同一个句子里
         candidate_mask = tf.logical_and(candidate_ends < num_words,
                                         tf.equal(candidate_start_sentence_indices, candidate_end_sentence_indices))
         flattened_candidate_mask = tf.reshape(candidate_mask, [-1])  # [num_words * max_span_width]
+        # [num_candidates] 把候选span mask掉再铺平
         candidate_starts = tf.boolean_mask(tf.reshape(candidate_starts, [-1]), flattened_candidate_mask)
         candidate_ends = tf.boolean_mask(tf.reshape(candidate_ends, [-1]), flattened_candidate_mask)  # [num_candidates]
 
         candidate_cluster_ids = self.get_candidate_labels(candidate_starts, candidate_ends, gold_starts, gold_ends,
                                                           cluster_ids)  # [num_candidates] 每个候选span的cluster_id
         candidate_binary_labels = candidate_cluster_ids > 0
-
+        # [num_candidates, emb] 候选答案的向量表示  [num_candidates,] 候选答案的得分
         candidate_span_emb = self.get_span_emb(mention_doc, candidate_starts, candidate_ends)
         candidate_mention_scores = self.get_mention_scores(candidate_span_emb, candidate_starts, candidate_ends)
 
@@ -350,7 +389,7 @@ class CorefModel(object):
         # pred_labels = pred_probs > 0.5
         mention_proposal_loss = self.bce_loss(y_pred=pred_probs,
                                               y_true=tf.cast(candidate_binary_labels, tf.float64))
-
+        # beam size 所有span的数量小于num_words * top_span_ratio
         k = tf.minimum(3900, tf.to_int32(tf.floor(tf.to_float(num_words) * self.config["top_span_ratio"])))
         c = tf.minimum(self.config["max_top_antecedents"], k)  # 初筛挑出0.4*500=200个候选，细筛再挑出50个候选
         # pull from beam，光使用mention_score卡前0.4*num_words个span  todo(yuxian): check this function
@@ -504,7 +543,10 @@ class CorefModel(object):
         dummy_scores = tf.zeros([k, 1])  # [k, 1]
 
         top_antecedent_scores = tf.concat([dummy_scores, top_antecedent_scores], 1)  # [k, c + 1]
-
+        # top_antecedent_cluster_ids [k, c] 每个mention每个antecedent的cluster_id
+        # same_cluster_indicator [k, c] 每个mention跟每个预测的antecedent是否同一个cluster
+        # pairwise_labels [k, c] 用pairwise的方法得到的label，非mention、非antecedent都是0，mention跟antecedent共指是1
+        # top_antecedent_labels [k, c+1] 最终的标签，如果某个mention没有antecedent就是dummy_label为1
         top_antecedent_cluster_ids = tf.gather(top_span_cluster_ids, topc_antecedent_mask)  # [k, c]
         top_antecedent_cluster_ids += tf.to_int32(tf.log(tf.to_float(top_antecedents_mask)))  # [k, c]
         same_cluster_indicator = tf.equal(top_antecedent_cluster_ids, tf.expand_dims(top_span_cluster_ids, 1))  # [k, c]
@@ -520,6 +562,9 @@ class CorefModel(object):
                 topc_forward_antecedent, top_antecedent_scores], loss
 
     def get_span_emb(self, context_outputs, span_starts, span_ends):
+        """一个span的表示由以下部分组成：
+        span_start_embedding, span_end_embedding, span_width_embedding, head_attention_representation
+        """
         span_emb_list = []
 
         span_start_emb = tf.gather(context_outputs, span_starts)  # [k, emb]
@@ -615,6 +660,13 @@ class CorefModel(object):
 
     def get_slow_antecedent_scores(self, top_span_emb, top_antecedents, top_antecedent_emb, top_antecedent_offsets,
                                    top_span_speaker_ids, genre_emb, segment_distance=None):
+        """用更多的特征对mention-pair做细筛，用到的特征有：
+        1. 两个mention的speaker是否相同
+        2. genre对应的embedding
+        3. 两个mention之间隔了几个mention
+        4. 两个mention之间隔了几个segment
+        将上述特征和头尾两个span的embedding拼在一起过全连接，得到mention-pair的得分
+        """
         k = util.shape(top_span_emb, 0)
         c = util.shape(top_antecedents, 1)
 
@@ -683,7 +735,12 @@ class CorefModel(object):
         return tf.boolean_mask(flattened_emb, tf.reshape(text_len_mask, [num_sentences * max_sentence_length]))
 
     def get_predicted_antecedents(self, antecedents, antecedent_scores):
-
+        """
+        获得每个mention最可能的antecedent
+        :param antecedents: (k, c) 每个mention对应antecedents的index
+        :param antecedent_scores: (k, c+1) 每个mention和其对应antecedents之间的得分
+        :return:
+        """
         predicted_antecedents = []
         for i, index in enumerate(np.argmax(antecedent_scores, axis=1) - 1):  # 每个mention只找分数最大的
             if index < 0:  # 如果没有一个mention的antecedent分数大于零，认为他没有共指
@@ -694,6 +751,13 @@ class CorefModel(object):
 
     def get_predicted_clusters(self, top_span_starts, top_span_ends, predicted_antecedents):
 
+        """
+        根据antecedent关系获得cluster信息
+        :param top_span_starts: [k, ] 每个span在token级别的start_index
+        :param top_span_ends: [k, ] 每个span在token级别的end_index
+        :param predicted_antecedents: [k, ] 每个span在span级别的antecedent的index
+        :return:
+        """
         mention_to_predicted = {}  # mention的(start_idx, end_idx)到cluster_id的映射
         predicted_clusters = []  # cluster_id到mention的(start_idx, end_idx)的映射
         for i, predicted_index in enumerate(predicted_antecedents):
@@ -783,6 +847,15 @@ class CorefModel(object):
             candidate_starts, candidate_ends, candidate_mention_scores, top_span_starts, top_span_ends, \
                 top_antecedents, top_antecedent_scores = session.run(self.predictions, feed_dict=feed_dict)
 
+            """
+            candidate_starts: (num_words, max_span_width) 所有候选span的start
+            candidate_ends: (num_words, max_span_width) 所有候选span的end
+            candidate_mention_scores: (num_candidates,) 候选答案的得分
+            top_span_starts: (k, ) 筛选过mention之后的候选的start_index
+            top_span_ends: (k, ) 筛选过mention之后的候选的end_index
+            top_antecedents: (k, c) 粗筛过antecedent之后的每个候选antecedent的index
+            top_antecedent_scores: (k, c) 粗筛过antecedent之后的每个候选antecedent的score
+            """
             predicted_antecedents = self.get_predicted_antecedents(top_antecedents, top_antecedent_scores)
             coref_predictions[example["doc_key"]] = self.evaluate_coref(top_span_starts, top_span_ends,
                                                                         predicted_antecedents, example["clusters"])
@@ -809,11 +882,27 @@ class CorefModel(object):
 
 
     def mention_proposal_loss(self, mention_span_score, gold_mention_span):
+        """
+        Desc:
+            caluate mention score
+        """
         mention_span_score = tf.reshape(mention_span_score, [-1])
         gold_mention_span = tf.reshape(gold_mention_span, [-1])
         return tf.nn.sigmoid_cross_entropy_with_logits(labels=gold_mention_span, logits=mention_span_score)
 
     def get_question_token_ids(self, sentence_map, input_ids, input_mask, top_start, top_end):
+        """
+        Desc:
+            construct question based on the selected mention
+        Args:
+            sentence_map: (num_tokens, ) tokens to sentence id
+            flattened_input_ids: (num_windows * window_size)
+            flattened_input_mask: (num_windows * window_size)
+            top_start: integer, mention start position w.r.t num_tokens
+            top_end: integer, mention end position w.r.t num_tokens
+        Returns:
+            vector of integer, question tokens
+        """
         sentence_idx = sentence_map[top_start]
         sentence_tokens = tf.cast(tf.where(tf.equal(sentence_map, sentence_idx)), tf.int32)
         sentence_start = tf.where(tf.equal(input_mask, sentence_tokens[0][0]))
