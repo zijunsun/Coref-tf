@@ -121,17 +121,14 @@ def main():
         model_fn=model_fn,
         config=run_config,
         train_batch_size=1,
-        eval_batch_size=1,
         predict_batch_size=1)
 
     if FLAGS.do_train:
-        estimator.train(input_fn=file_based_input_fn_builder(config["train_path"],\
-            config, is_training=True,drop_remainder=True), 
-            max_steps=20000)
+        estimator.train(input_fn=file_based_input_fn_builder(config["train_path"] ,config, is_training=True, drop_remainder=True), max_steps=20000)
 
 
 if __name__ == '__main__':
-    main()
+    tf.app.run()
 
 
 
