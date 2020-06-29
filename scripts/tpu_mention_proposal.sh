@@ -4,9 +4,9 @@
 
 
 # REPO_PATH=/home/lixiaoya/xiaoy_tf
-REPO_PATH=/home/xiaoyli1110/xiaoya
+REPO_PATH=/home/xiaoyli1110/xiaoya/Coref-tf
 export PYTHONPATH=${REPO_PATH}
-export PYTHONPATH="$PYTHONPATH:/home/xiaoyli1110/xiaoya"
+export PYTHONPATH="$PYTHONPATH:/home/xiaoyli1110/xiaoya/Coref-tf"
 export TPU_NAME=tensorflow-tpu
 
 export STORAGE_BUCKET=gs://xiaoy-data

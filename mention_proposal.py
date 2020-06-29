@@ -29,8 +29,6 @@ from pytorch_to_tf import load_from_pytorch_checkpoint
 
 
 
-
-
 class MentionProposalModel(object):
     def __init__(self, config):
         self.config = config
