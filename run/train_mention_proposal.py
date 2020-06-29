@@ -43,15 +43,15 @@ def model_fn_builder(config):
         """The `model_fn` for TPUEstimator."""
         config = util.initialize_from_env()
 
-        input_ids =  tf.squeeze(features["flattened_input_ids"], 0)
-        input_mask  = tf.squeeze(features["flattened_input_mask"], 0)
-        text_len = tf.squeeze(features["text_len"], 0)
-        speaker_ids = tf.squeeze(features["speaker_ids"], 0)
-        genre = tf.squeeze(features["genre"], 0)
-        gold_starts = tf.squeeze(features["span_starts"], 0)
-        gold_ends = tf.squeeze(features["span_ends"], 0)
-        cluster_ids = tf.squeeze(features["cluster_ids"], 0)
-        sentence_map = tf.squeeze(features["sentence_map"], 0)
+        input_ids =  features["flattened_input_ids"]
+        input_mask  = features["flattened_input_mask"]
+        text_len = features["text_len"]
+        speaker_ids = features["speaker_ids"]
+        genre = features["genre"]
+        gold_starts = features["span_starts"]
+        gold_ends = features["span_ends"]
+        cluster_ids = features["cluster_ids"]
+        sentence_map = features["sentence_map"]
 
         tf.logging.info("*** Features ***")
         for name in sorted(features.keys()):
