@@ -17,7 +17,7 @@ GCP_PROJECT=xiaoyli-20-04-274510
 DATA_DIR=$STORAGE_BUCKET/data
 TRAIN_FILE=${DATA_DIR}/train.english.tfrecord
 
-OUTPUT_DIR=/home/lixiaoya/finetune_output 
+OUTPUT_DIR=/home/xiaoyli1110/xiaoya 
 TRAIN_FILE=/xiaoya/data/train.english.tfrecord
 
 
