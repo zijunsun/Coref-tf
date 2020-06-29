@@ -299,7 +299,7 @@ class MentionProposalModel(object):
         #                                            num_words,
         #                                            True)  # [1, k]
         ### top_span_indices = tf.reshape(top_span_indices, [-1])  # k个按mention_score初筛出来的candidate的index
-        top_span_indices = tf.nn.top_k(candidate_mention_scores, k)
+        _, top_span_indices = tf.nn.top_k(candidate_mention_scores, k)
 
         # 取出top_k的span的信息，过coarse的span pair筛选，每个span取前c个antecedent
         top_span_starts = tf.gather(candidate_starts, top_span_indices)  # [k]
