@@ -43,8 +43,8 @@ def model_fn_builder(config):
         """The `model_fn` for TPUEstimator."""
         config = util.initialize_from_env()
 
-        input_ids =  features["flattened_input_ids"]
-        input_mask  = features["flattened_input_mask"]
+        input_ids =  tf.reshape(features["flattened_input_ids"], [-1, 128])
+        input_mask  = tf.reshape(features["flattened_input_mask"], [-1, 128])
         text_len = features["text_len"]
         speaker_ids = features["speaker_ids"]
         genre = features["genre"]

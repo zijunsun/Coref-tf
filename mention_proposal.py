@@ -639,7 +639,7 @@ class MentionProposalModel(object):
         candidate_cluster_ids = self.get_candidate_labels(candidate_starts, candidate_ends, gold_starts, gold_ends,
                                                           cluster_ids)  # [num_candidates] 每个候选span的cluster_id
         candidate_binary_labels = candidate_cluster_ids > 0
-        # [num_candidates, emb] 候选答案的向量表示  [num_candidates,] 候选答案的得分
+        # [num_candidates, emb] 候选答案的向量表示 [num_candidates,] 候选答案的
         candidate_span_emb = self.get_span_emb(mention_doc, candidate_starts, candidate_ends)
         candidate_mention_scores = self.get_mention_scores(candidate_span_emb, candidate_starts, candidate_ends)
         pred_probs = tf.sigmoid(candidate_mention_scores)
