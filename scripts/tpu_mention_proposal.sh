@@ -28,5 +28,4 @@ python3 ${REPO_PATH}/run/train_mention_proposal.py \
 --use_tpu=True \
 --tpu_name=${TPU_NAME} \
 --gcp_project=${GCP_PROJECT} \
---tpu_zone=us-central1-f \
---num_tpu_cores 1
+--tpu_zone=us-central1-f
