@@ -74,7 +74,11 @@ def model_fn_builder(config):
             # optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config['bert_learning_rate'])
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=config['bert_learning_rate'])
             optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
-            predictions, total_loss = model.get_predictions_and_loss(input_ids, input_mask, \
+            # predictions, total_loss = model.get_predictions_and_loss(input_ids, input_mask, \
+            #     text_len, speaker_ids, genre, is_training, gold_starts,
+            #     gold_ends, cluster_ids, sentence_map)
+
+            total_loss, pred_mention_labels, gold_mention_labels = model.get_mention_proposal_and_loss(input_ids, input_mask, \
                 text_len, speaker_ids, genre, is_training, gold_starts,
                 gold_ends, cluster_ids, sentence_map)
             train_op = optimizer.minimize(total_loss, tf.train.get_global_step()) 

@@ -60,7 +60,9 @@ class MentionProposalModel(object):
         self.enqueue_op = queue.enqueue(self.queue_input_tensors)
         self.input_tensors = queue.dequeue()  # self.queue_input_tensors 不一样？
 
-        self.predictions, self.loss = self.get_predictions_and_loss(*self.input_tensors)
+
+        self.loss, self.pred_mention_labels, self.gold_mention_labels = self.get_mention_proposal_and_loss(*self.input_tensors)
+
         # bert stuff
         tvars = tf.trainable_variables()
         # If you're using TF weights only, tf_checkpoint and init_checkpoint can be the same
@@ -274,8 +276,7 @@ class MentionProposalModel(object):
         candidate_start_sentence_indices = tf.gather(sentence_map, candidate_starts)
         candidate_end_sentence_indices = tf.gather(sentence_map, tf.minimum(candidate_ends, num_words - 1))
         # [num_words, max_span_width]，合法的span需要满足start/end不能越界；start/end必须在同一个句子里
-        candidate_mask = tf.logical_and(candidate_ends < num_words,
-                                        tf.equal(candidate_start_sentence_indices, candidate_end_sentence_indices))
+        candidate_mask = tf.logical_and(candidate_ends < num_words, tf.equal(candidate_start_sentence_indices, candidate_end_sentence_indices))
         flattened_candidate_mask = tf.reshape(candidate_mask, [-1])  # [num_words * max_span_width]
         # [num_candidates] 把候选span mask掉再铺平
         candidate_starts = tf.boolean_mask(tf.reshape(candidate_starts, [-1]), flattened_candidate_mask)
@@ -597,6 +598,52 @@ class MentionProposalModel(object):
                                                self.dropout)  # [k, c, 1]
         slow_antecedent_scores = tf.squeeze(slow_antecedent_scores, 2)  # [k, c]
         return slow_antecedent_scores  # [k, c]
+
+    def get_mention_proposal_and_loss(
+        self, input_ids, input_mask, text_len, speaker_ids, genre, is_training,
+        gold_starts, gold_ends, cluster_ids, sentence_map):
+        """get mention proposals"""
+
+        model = modeling.BertModel(
+            config=self.bert_config,
+            is_training=is_training,
+            input_ids=input_ids,
+            input_mask=input_mask,
+            use_one_hot_embeddings=False,
+            scope='bert')
+        self.dropout = self.get_dropout(self.config["dropout_rate"], is_training)
+        mention_doc = model.get_sequence_output()  # (batch_size, seq_len, hidden)
+        mention_doc = self.flatten_emb_by_sentence(mention_doc, input_mask)  # (b, s, e) -> (b*s, e) 取出有效token的emb
+        num_words = util.shape(mention_doc, 0)  # b*s
+
+        # candidate_span: 每个位置都可能是起点，对每个起点有max_span_width种不同的终点，总共有(num_words, max_span_width)种可能
+        candidate_starts = tf.tile(tf.expand_dims(tf.range(num_words), 1), [1, self.max_span_width])
+        candidate_ends = candidate_starts + tf.expand_dims(tf.range(self.max_span_width), 0)
+
+        # [num_words, max_span_width]，根据index将对应位置的sentence_id取出来
+        candidate_start_sentence_indices = tf.gather(sentence_map, candidate_starts)
+        candidate_end_sentence_indices = tf.gather(sentence_map, tf.minimum(candidate_ends, num_words - 1))
+        # [num_words, max_span_width]，合法的span需要满足start/end不能越界；start/end必须在同一个句子里
+        candidate_mask = tf.logical_and(candidate_ends < num_words,
+                                        tf.equal(candidate_start_sentence_indices, candidate_end_sentence_indices))
+        flattened_candidate_mask = tf.reshape(candidate_mask, [-1])  # [num_words * max_span_width]
+        # [num_candidates] 把候选span mask掉再铺平
+        candidate_starts = tf.boolean_mask(tf.reshape(candidate_starts, [-1]), flattened_candidate_mask)
+        candidate_ends = tf.boolean_mask(tf.reshape(candidate_ends, [-1]),
+                                         flattened_candidate_mask)  # [num_candidates]
+
+        candidate_cluster_ids = self.get_candidate_labels(candidate_starts, candidate_ends, gold_starts, gold_ends,
+                                                          cluster_ids)  # [num_candidates] 每个候选span的cluster_id
+        candidate_binary_labels = candidate_cluster_ids > 0
+        # [num_candidates, emb] 候选答案的向量表示  [num_candidates,] 候选答案的得分
+        candidate_span_emb = self.get_span_emb(mention_doc, candidate_starts, candidate_ends)
+        candidate_mention_scores = self.get_mention_scores(candidate_span_emb, candidate_starts, candidate_ends)
+        pred_probs = tf.sigmoid(candidate_mention_scores)
+        pred_labels = pred_probs > 0.5
+        mention_proposal_loss = self.bce_loss(y_pred=pred_probs,
+                                              y_true=tf.cast(candidate_binary_labels, tf.float64))
+        return mention_proposal_loss, pred_labels, candidate_binary_labels
+
 
 
 
