@@ -150,6 +150,8 @@ def main(_):
     if FLAGS.use_tpu and FLAGS.tpu_name:
         tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(
             FLAGS.tpu_name, zone=FLAGS.tpu_zone, project=FLAGS.gcp_project)
+        tf.config.experimental_connect_to_cluster(tpu_cluster_resolver)
+        tf.tpu.experimental.initialize_tpu_system(tpu_cluster_resolver)
 
     is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
     run_config = tf.contrib.tpu.RunConfig(
