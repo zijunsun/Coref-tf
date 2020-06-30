@@ -61,10 +61,10 @@ class MentionProposalModel(object):
         self.input_tensors = queue.dequeue()  # self.queue_input_tensors 不一样？
         self.bce_loss = tf.keras.losses.BinaryCrossentropy()
         self.mention_proposal_only = self.config.mention_proposal_only
-        if self.mention_proposal_only:
-            self.loss, self.pred_mention_labels, self.gold_mention_labels = self.get_mention_proposal_and_loss(*self.input_tensors)
-        else:
-            self.predictions, self.loss = self.get_predictions_and_loss(*self.input_tensors)
+        ######## if self.mention_proposal_only:
+        ########     self.loss, self.pred_mention_labels, self.gold_mention_labels = self.get_mention_proposal_and_loss(*self.input_tensors)
+        ######## else:
+        ########     self.predictions, self.loss = self.get_predictions_and_loss(*self.input_tensors)
         # bert stuff
         # ######## comment by xiaoy li at 2020.07.30 
         ########tvars = tf.trainable_variables()
@@ -84,14 +84,14 @@ class MentionProposalModel(object):
         ########    # init_string)
         ########    print("  name = %s, shape = %s%s" % (var.name, var.shape, init_string))
 
-        # num_train_steps = int(self.config['num_docs'] * self.config['num_epochs'])  # 文章数 * 训练轮数
-        # num_warmup_steps = int(num_train_steps * 0.1)  # 前1/10做warm_up
-        # self.global_step = tf.train.get_or_create_global_step()  # 根据不同的model得到不同的optimizer
-        # self.train_op = optimization.create_custom_optimizer(tvars, self.loss, self.config['bert_learning_rate'],
-        #                                                      self.config['task_learning_rate'],
-        #                                                      num_train_steps, num_warmup_steps, False, self.global_step,
-        #                                                      freeze=-1, task_opt=self.config['task_optimizer'],
-        #                                                      eps=config['adam_eps'])
+        ######## num_train_steps = int(self.config['num_docs'] * self.config['num_epochs'])  # 文章数 * 训练轮数
+        ######## num_warmup_steps = int(num_train_steps * 0.1)  # 前1/10做warm_up
+        ######## self.global_step = tf.train.get_or_create_global_step()  # 根据不同的model得到不同的optimizer
+        ######## self.train_op = optimization.create_custom_optimizer(tvars, self.loss, self.config['bert_learning_rate'],
+        ########                                                      self.config['task_learning_rate'],
+        ########                                                      num_train_steps, num_warmup_steps, False, self.global_step,
+        ########                                                      freeze=-1, task_opt=self.config['task_optimizer'],
+        ########                                                      eps=config['adam_eps'])
         self.coref_evaluator = metrics.CorefEvaluator()
 
     def start_enqueue_thread(self, session):
