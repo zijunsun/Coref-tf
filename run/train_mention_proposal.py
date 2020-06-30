@@ -86,7 +86,7 @@ def model_fn_builder(config):
         # Depending on the extension, use TF/Pytorch to load weights.
         assignment_map, initialized_variable_names = get_assignment_map_from_checkpoint(tvars, config[
             'tf_checkpoint'])
-        init_from_checkpoint = tf.train.init_from_checkpoint if config['init_checkpoint'].endswith('ckpt') else load_from_pytorch_checkpoint
+        init_from_checkpoint = tf.train.init_from_checkpoint if config['init_checkpoint'].endswith('ckpt') # else load_from_pytorch_checkpoint
         
         ########################################################################
   
