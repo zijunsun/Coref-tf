@@ -198,7 +198,8 @@ def main(_):
     seq_length = config["max_segment_len"] * config["max_training_sentences"]
 
     if FLAGS.do_train:
-        estimator.train(input_fn=file_based_input_fn_builder(config["train_path"], seq_length, config, is_training=True, drop_remainder=True), max_steps=200)
+        estimator.train(input_fn=file_based_input_fn_builder(config["train_path"], seq_length, config, is_training=True, drop_remainder=True), \
+            max_steps=10)
 
 
 if __name__ == '__main__':
