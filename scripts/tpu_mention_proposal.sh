@@ -20,5 +20,4 @@ python3 ${REPO_PATH}/run/train_mention_proposal.py \
 --tpu_name=${TPU_NAME} \
 --tpu_zone=us-central1-f \
 --gcp_project=${GCP_PROJECT} \
---master=10.242.10.122 \
 --num_tpu_cores=1
