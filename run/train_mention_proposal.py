@@ -9,6 +9,8 @@ import tensorflow as tf
 import util
 from radam import RAdam
 from input_builder import file_based_input_fn_builder
+from bert.modeling import get_assignment_map_from_checkpoint
+from pytorch_to_tf import load_from_pytorch_checkpoint
 
 
 format = '%(asctime)s - %(levelname)s - %(name)s - %(message)s'
@@ -85,17 +87,38 @@ def model_fn_builder(config):
         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
         model = util.get_model(config, model_sign="mention_proposal")
+
+        ########################################################################
+        tvars = tf.trainable_variables()
+        # If you're using TF weights only, tf_checkpoint and init_checkpoint can be the same
+        # Get the assignment map from the tensorflow checkpoint.
+        # Depending on the extension, use TF/Pytorch to load weights.
+        assignment_map, initialized_variable_names = get_assignment_map_from_checkpoint(tvars, config[
+            'tf_checkpoint'])
+        init_from_checkpoint = tf.train.init_from_checkpoint if config['init_checkpoint'].endswith('ckpt') else load_from_pytorch_checkpoint
+        
+        ########################################################################
   
         if FLAGS.use_tpu:
             def tpu_scaffold():
+                init_from_checkpoint(config['init_checkpoint'], assignment_map)
                 return tf.train.Scaffold()
 
             scaffold_fn = tpu_scaffold
         else:
+            init_from_checkpoint(config['init_checkpoint'], assignment_map)
             scaffold_fn = None 
-           
-        # if mode == tf.estimator.ModeKeys.TRAIN:
-        tf.logging.info("**** Trainable Variables ****")
+        
+
+        print("**** Trainable Variables ****")
+        for var in tvars:
+            init_string = ""
+            if var.name in initialized_variable_names:
+                init_string = ", *INIT_FROM_CKPT*"
+            # tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape,
+            # init_string)
+            print("  name = %s, shape = %s%s" % (var.name, var.shape, init_string))
+
         # optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config['bert_learning_rate'])
         total_loss, pred_mention_labels, gold_mention_labels = model.get_mention_proposal_and_loss(input_ids, input_mask, \
                 text_len, speaker_ids, genre, is_training, gold_starts,
