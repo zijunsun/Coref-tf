@@ -135,7 +135,7 @@ def model_fn_builder(config):
 
 
 def main(_):
-    config = util.initialize_from_env()
+    config = util.initialize_from_env(use_tpu=FLAGS.use_tpu)
 
     tf.logging.set_verbosity(tf.logging.INFO)
 

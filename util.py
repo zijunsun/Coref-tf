@@ -26,14 +26,17 @@ def get_model(config, model_sign="corefqa"):
         return mention_proposal.MentionProposalModel(config)
 
 
-def initialize_from_env(eval_test=False, config_name="train_spanbert_base"):
+def initialize_from_env(eval_test=False, config_name="train_spanbert_base", use_tpu=False):
     # if "GPU" in os.environ:
     #     set_gpus(int(os.environ["GPU"]))
 
     name = config_name # sys.argv[1]
     print("Running experiment: {}".format(name))
 
-    config = pyhocon.ConfigFactory.parse_file(os.path.join(repo_path, "experiments.conf")) 
+    if not use_tpu:
+        config = pyhocon.ConfigFactory.parse_file(os.path.join(repo_path, "experiments.conf")) 
+    else: 
+        config = pyhocon.ConfigFactory.parse_file(os.path.join(repo_path, "experiments_tpu.conf"))
 
     print("=*="*10)
     print("chceck config name :")
