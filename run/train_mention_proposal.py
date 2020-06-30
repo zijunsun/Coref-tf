@@ -45,7 +45,7 @@ def model_fn_builder(config):
 
     def model_fn(features, labels, mode, params):  # pylint: disable=unused-argument
         """The `model_fn` for TPUEstimator."""
-        config = util.initialize_from_env()
+        config = util.initialize_from_env(use_tpu=FLAGS.use_tpu)
 
         tmp_features = {}
         input_ids = features["flattened_input_ids"]
@@ -149,7 +149,7 @@ def model_fn_builder(config):
 
 
 def main(_):
-    config = util.initialize_from_env()
+    config = util.initialize_from_env(use_tpu=FLAGS.use_tpu)
 
     tf.logging.set_verbosity(tf.logging.INFO)
 
