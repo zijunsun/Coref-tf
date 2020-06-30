@@ -48,25 +48,16 @@ def model_fn_builder(config):
         config = util.initialize_from_env()
 
         tmp_features = {}
-        input_ids = tf.boolean_mask(features["flattened_input_ids"], tf.math.greater_equal(features["flattened_input_ids"], tf.zeros_like(features["flattened_input_ids"]))) 
-        input_mask = tf.boolean_mask(features["flattened_input_mask"], tf.math.greater_equal(features["flattened_input_mask"], tf.zeros_like(features["flattened_input_mask"]))) 
-        text_len = tf.boolean_mask(features["text_len"], tf.math.greater_equal(features["text_len"], tf.zeros_like(features["text_len"]))) 
+        input_ids = features["flattened_input_ids"]
+        input_mask = features["flattened_input_mask"]
+        text_len = features["text_len"]
 
-        speaker_ids = tf.boolean_mask(features["speaker_ids"], tf.math.greater_equal(features["speaker_ids"], tf.zeros_like(features["speaker_ids"]))) 
+        speaker_ids = features["speaker_ids"]
         genre = features["genre"] 
-        gold_starts = tf.boolean_mask(features["span_starts"], tf.math.greater_equal(features["span_starts"], tf.zeros_like(features["span_starts"]))) 
-        gold_ends = tf.boolean_mask(features["span_ends"], tf.math.greater_equal(features["span_ends"], tf.zeros_like(features["span_ends"]))) 
-        cluster_ids = tf.boolean_mask(features["cluster_ids"], tf.math.greater_equal(features["cluster_ids"], tf.zeros_like(features["cluster_ids"]))) 
-        sentence_map = tf.boolean_mask(features["sentence_map"], tf.math.greater_equal(features["sentence_map"], tf.zeros_like(features["sentence_map"]))) 
-
-        input_ids = tf.reshape(input_ids, [-1, config["max_segment_len"]])
-        input_mask  = tf.reshape(input_mask, [-1, config["max_segment_len"]])
-        text_len = tf.reshape(text_len, [-1])
-        speaker_ids = tf.reshape(features["speaker_ids"], [-1, config["max_segment_len"]])
-        sentence_map = tf.reshape(sentence_map, [-1])
-        cluster_ids = tf.reshape(cluster_ids, [-1]) 
-        gold_starts = tf.reshape(gold_starts, [-1]) 
-        gold_ends = tf.reshape(gold_ends, [-1]) 
+        gold_starts = features["span_starts"]
+        gold_ends = features["span_ends"]
+        cluster_ids = features["cluster_ids"]
+        sentence_map = features["sentence_map"] 
         
         tmp_features["input_ids"] = input_ids 
         tmp_features["input_mask"] = input_mask 

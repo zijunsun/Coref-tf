@@ -302,6 +302,26 @@ class MentionProposalModel(object):
     ):
         """get mention proposals"""
 
+        input_ids = tf.boolean_mask(input_ids, tf.math.greater_equal(input_ids, tf.zeros_like(input_ids))) 
+        input_mask = tf.boolean_mask(input_mask, tf.math.greater_equal(input_mask, tf.zeros_like(input_mask))) 
+        text_len = tf.boolean_mask(text_len, tf.math.greater_equal(text_len, tf.zeros_like(text_len))) 
+        speaker_ids = tf.boolean_mask(speaker_ids, tf.math.greater_equal(speaker_ids, tf.zeros_like(speaker_ids))) 
+        gold_starts = tf.boolean_mask(gold_starts, tf.math.greater_equal(gold_starts, tf.zeros_like(gold_starts))) 
+        gold_ends = tf.boolean_mask(gold_ends, tf.math.greater_equal(gold_ends, tf.zeros_like(gold_ends))) 
+        cluster_ids = tf.boolean_mask(cluster_ids, tf.math.greater_equal(cluster_ids, tf.zeros_like(cluster_ids))) 
+        sentence_map = tf.boolean_mask(sentence_map, tf.math.greater_equal(sentence_map, tf.zeros_like(sentence_map))) 
+
+
+        input_ids = tf.reshape(input_ids, [-1, config["max_segment_len"]])
+        input_mask  = tf.reshape(input_mask, [-1, config["max_segment_len"]])
+        text_len = tf.reshape(text_len, [-1])
+        speaker_ids = tf.reshape(features["speaker_ids"], [-1, config["max_segment_len"]])
+        sentence_map = tf.reshape(sentence_map, [-1])
+        cluster_ids = tf.reshape(cluster_ids, [-1]) 
+        gold_starts = tf.reshape(gold_starts, [-1]) 
+        gold_ends = tf.reshape(gold_ends, [-1]) 
+
+
         model = modeling.BertModel(
             config=self.bert_config,
             is_training=is_training,
