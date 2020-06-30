@@ -45,19 +45,52 @@ def model_fn_builder(config):
         """The `model_fn` for TPUEstimator."""
         config = util.initialize_from_env()
 
-        input_ids =  tf.reshape(features["flattened_input_ids"], [-1, 128])
-        input_mask  = tf.reshape(features["flattened_input_mask"], [-1, 128])
-        text_len = features["text_len"]
-        speaker_ids = features["speaker_ids"]
-        genre = features["genre"]
-        gold_starts = features["span_starts"]
-        gold_ends = features["span_ends"]
-        cluster_ids = features["cluster_ids"]
-        sentence_map = features["sentence_map"]
+        tmp_features = {}
+        input_ids = tf.boolean_mask(features["flattened_input_ids"], tf.math.greater_equal(features["flattened_input_ids"], tf.zeros_like(features["flattened_input_ids"]))) 
+        input_mask = tf.boolean_mask(features["flattened_input_mask"], tf.math.greater_equal(features["flattened_input_mask"], tf.zeros_like(features["flattened_input_mask"]))) 
+        text_len = tf.boolean_mask(features["text_len"], tf.math.greater_equal(features["text_len"], tf.zeros_like(features["text_len"]))) 
+
+        speaker_ids = tf.boolean_mask(features["speaker_ids"], tf.math.greater_equal(features["speaker_ids"], tf.zeros_like(features["speaker_ids"]))) 
+        genre = features["genre"] 
+        gold_starts = tf.boolean_mask(features["span_starts"], tf.math.greater_equal(features["span_starts"], tf.zeros_like(features["span_starts"]))) 
+        gold_ends = tf.boolean_mask(features["span_ends"], tf.math.greater_equal(features["span_ends"], tf.zeros_like(features["span_ends"]))) 
+        cluster_ids = tf.boolean_mask(features["cluster_ids"], tf.math.greater_equal(features["cluster_ids"], tf.zeros_like(features["cluster_ids"]))) 
+        sentence_map = tf.boolean_mask(features["sentence_map"], tf.math.greater_equal(features["sentence_map"], tf.zeros_like(features["sentence_map"]))) 
+
+        input_ids = tf.reshape(input_ids, [-1, config["max_segment_len"]])
+        input_mask  = tf.reshape(input_mask, [-1, config["max_segment_len"]])
+        text_len = tf.reshape(text_len, [-1])
+        speaker_ids = tf.reshape(features["speaker_ids"], [-1, config["max_segment_len"]])
+        sentence_map = tf.reshape(sentence_map, [-1])
+        cluster_ids = tf.reshape(cluster_ids, [-1]) 
+        gold_starts = tf.reshape(gold_starts, [-1]) 
+        gold_ends = tf.reshape(gold_ends, [-1]) 
+        
+        # input_ids =  tf.reshape(features["flattened_input_ids"], [-1, config["max_segment_len"]])
+        # input_mask  = tf.reshape(features["flattened_input_mask"], [-1, config["max_segment_len"]])
+        # text_len = tf.reshape(features["text_len"], [-1])
+        # speaker_ids = tf.reshape(features["speaker_ids"], [-1, config["max_segment_len"]])
+        # genre = features["genre"]
+        # gold_starts = tf.reshape(features["span_starts"], [-1])
+        # gold_ends = tf.reshape(features["span_ends"], [-1])
+        # cluster_ids = tf.reshape(features["cluster_ids"], [-1])
+        # sentence_map = tf.reshape(features["sentence_map"], [-1, config["max_segment_len"]])
+        # sentence_map = tf.reshape(features["sentence_map"], [-1, config["max_segment_len"]])
+        tmp_features["input_ids"] = input_ids 
+        tmp_features["input_mask"] = input_mask 
+        tmp_features["text_len"] = text_len 
+        tmp_features["speaker_ids"] = speaker_ids
+        tmp_features["genre"] = genre
+        tmp_features["gold_starts"] = gold_starts
+        tmp_features["gold_ends"] =  gold_ends
+        tmp_features["speaker_ids"] = speaker_ids
+        tmp_features["cluster_ids"] = cluster_ids
+        tmp_features["sentence_map"] = sentence_map
+
 
         tf.logging.info("*** Features ***")
-        for name in sorted(features.keys()):
-            tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
+        for name in sorted(tmp_features.keys()):
+            tf.logging.info("  name = %s, shape = %s" % (name, tmp_features[name].shape))
 
         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
@@ -79,6 +112,7 @@ def model_fn_builder(config):
                 gold_ends, cluster_ids, sentence_map)
 
         if config["tpu"]:
+            tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=config['bert_learning_rate'])
             optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
             # predictions, total_loss = model.get_predictions_and_loss(input_ids, input_mask, \
@@ -115,7 +149,7 @@ def model_fn_builder(config):
     return model_fn
 
 
-def main():
+def main(_):
     config = util.initialize_from_env()
 
     tf.logging.set_verbosity(tf.logging.INFO)
@@ -151,15 +185,15 @@ def main():
         train_batch_size=1,
         predict_batch_size=1)
 
-    seq_length = config["max_segment_len"]
+    seq_length = config["max_segment_len"] * config["max_training_sentences"]
 
     if FLAGS.do_train:
         estimator.train(input_fn=file_based_input_fn_builder(config["train_path"], seq_length, config, is_training=True, drop_remainder=True), max_steps=20000)
 
 
 if __name__ == '__main__':
-    main()
-    # tf.app.run()
+    # main()
+    tf.app.run()
 
 
 

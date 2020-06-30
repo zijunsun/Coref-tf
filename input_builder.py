@@ -15,17 +15,32 @@ def file_based_input_fn_builder(input_file, seq_length, config, is_training, dro
             d = d.repeat() 
             d = d.shuffle(buffer_size=100)
 
+        # name_to_features = {
+        #     'sentence_map': tf.FixedLenFeature([config["max_training_sentences"], config["max_segment_len"]], tf.int64),
+        #     'text_len': tf.FixedLenFeature([config["max_training_sentences"] ], tf.int64),
+        #     'subtoken_map': tf.FixedLenFeature([config["max_training_sentences"], config["max_segment_len"]], tf.int64),
+        #     'speaker_ids': tf.FixedLenFeature([config["max_training_sentences"], config["max_segment_len"]], tf.int64),
+        #     'flattened_input_ids': tf.FixedLenFeature([config["max_training_sentences"], config["max_segment_len"]], tf.int64),
+        #     'flattened_input_mask': tf.FixedLenFeature([config["max_training_sentences"], config["max_segment_len"]], tf.int64),
+        #     'genre': tf.FixedLenFeature([], tf.int64),
+        #     'span_starts': tf.FixedLenFeature([config["max_training_sentences"]], tf.int64),
+        #     'span_ends': tf.FixedLenFeature([config["max_training_sentences"]], tf.int64), 
+        #     'cluster_ids': tf.FixedLenFeature([config["max_training_sentences"]], tf.int64) }
+
         name_to_features = {
-            'sentence_map': tf.FixedLenFeature([seq_length], tf.int64),
-            'text_len': tf.FixedLenFeature([seq_length], tf.int64),
-            'subtoken_map': tf.FixedLenFeature([seq_length], tf.int64),
-            'speaker_ids': tf.FixedLenFeature([seq_length], tf.int64),
-            'flattened_input_ids': tf.FixedLenFeature([seq_length], tf.int64),
-            'flattened_input_mask': tf.FixedLenFeature([seq_length], tf.int64),
-            'genre': tf.FixedLenFeature([seq_length], tf.int64),
-            'span_starts': tf.FixedLenFeature([seq_length], tf.int64),
-            'span_ends': tf.FixedLenFeature([seq_length], tf.int64), 
-            'cluster_ids': tf.FixedLenFeature([seq_length], tf.int64) }
+            'text_len': tf.FixedLenFeature([config["max_training_sentences"] ], tf.int64),
+            'subtoken_map': tf.FixedLenFeature([config["max_training_sentences"] *  config["max_segment_len"]], tf.int64),
+            'speaker_ids': tf.FixedLenFeature([config["max_training_sentences"] * config["max_segment_len"]], tf.int64),
+            'flattened_input_ids': tf.FixedLenFeature([config["max_training_sentences"] * config["max_segment_len"]], tf.int64),
+            'flattened_input_mask': tf.FixedLenFeature([config["max_training_sentences"] * config["max_segment_len"]], tf.int64),
+            'genre': tf.FixedLenFeature([1], tf.int64),
+            'span_starts': tf.FixedLenFeature([config["max_cluster_num"]], tf.int64),
+            'span_ends': tf.FixedLenFeature([config["max_cluster_num"]], tf.int64), 
+            'cluster_ids': tf.FixedLenFeature([config["max_cluster_num"]], tf.int64),
+            # 'sentence_map': tf.FixedLenFeature([config["max_training_sentences"] * config["max_segment_len"]], tf.int64)}
+            'sentence_map': tf.FixedLenFeature([config["max_training_sentences"] * config["max_segment_len"]], tf.int64)}
+
+
 
         def _decode_features(record):
             """Decodes a record to a TensorFlow example."""
