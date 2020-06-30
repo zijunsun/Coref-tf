@@ -66,22 +66,23 @@ class MentionProposalModel(object):
         else:
             self.predictions, self.loss = self.get_predictions_and_loss(*self.input_tensors)
         # bert stuff
-        tvars = tf.trainable_variables()
+        # ######## comment by xiaoy li at 2020.07.30 
+        ########tvars = tf.trainable_variables()
         # If you're using TF weights only, tf_checkpoint and init_checkpoint can be the same
         # Get the assignment map from the tensorflow checkpoint.
         # Depending on the extension, use TF/Pytorch to load weights.
-        assignment_map, initialized_variable_names = modeling.get_assignment_map_from_checkpoint(tvars, config[
-            'tf_checkpoint'])
-        init_from_checkpoint = tf.train.init_from_checkpoint if config['init_checkpoint'].endswith('ckpt') else load_from_pytorch_checkpoint
-        init_from_checkpoint(config['init_checkpoint'], assignment_map)
-        print("**** Trainable Variables ****")
-        for var in tvars:
-            init_string = ""
-            if var.name in initialized_variable_names:
-                init_string = ", *INIT_FROM_CKPT*"
-            # tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape,
-            # init_string)
-            print("  name = %s, shape = %s%s" % (var.name, var.shape, init_string))
+        ########assignment_map, initialized_variable_names = modeling.get_assignment_map_from_checkpoint(tvars, config[
+        ########    'tf_checkpoint'])
+        ########init_from_checkpoint = tf.train.init_from_checkpoint if config['init_checkpoint'].endswith('ckpt') else load_from_pytorch_checkpoint
+        ########init_from_checkpoint(config['init_checkpoint'], assignment_map)
+        ########print("**** Trainable Variables ****")
+        ########for var in tvars:
+        ########    init_string = ""
+        ########    if var.name in initialized_variable_names:
+        ########        init_string = ", *INIT_FROM_CKPT*"
+        ########    # tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape,
+        ########    # init_string)
+        ########    print("  name = %s, shape = %s%s" % (var.name, var.shape, init_string))
 
         num_train_steps = int(self.config['num_docs'] * self.config['num_epochs'])  # 文章数 * 训练轮数
         num_warmup_steps = int(num_train_steps * 0.1)  # 前1/10做warm_up
