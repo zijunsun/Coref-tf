@@ -13,20 +13,28 @@ import numpy as np
 import pyhocon
 import tensorflow as tf
 import corefqa
+import mention_proposal 
 
 
-def get_model(config):
-    return corefqa.CorefModel(config)
+repo_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 
 
-def initialize_from_env(eval_test=False):
+def get_model(config, model_sign="corefqa"):
+    if model_sign == "corefqa":
+        return corefqa.CorefModel(config)
+    else:
+        return mention_proposal.MentionProposalModel(config)
+
+
+def initialize_from_env(eval_test=False, config_name="train_spanbert_base"):
     # if "GPU" in os.environ:
     #     set_gpus(int(os.environ["GPU"]))
 
-    name = sys.argv[1]
+    name = config_name # sys.argv[1]
     print("Running experiment: {}".format(name))
 
-    config = pyhocon.ConfigFactory.parse_file("experiments.conf")
+    config = pyhocon.ConfigFactory.parse_file(os.path.join(repo_path, "experiments.conf")) 
+
     print("=*="*10)
     print("chceck config name :")
     print(config.keys())
