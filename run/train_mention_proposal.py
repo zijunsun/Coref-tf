@@ -199,7 +199,7 @@ def main(_):
 
     if FLAGS.do_train:
         estimator.train(input_fn=file_based_input_fn_builder(config["train_path"], seq_length, config, is_training=True, drop_remainder=True), \
-            max_steps=10)
+            max_steps=1)
 
 
 if __name__ == '__main__':
