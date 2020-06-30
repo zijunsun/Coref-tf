@@ -19,13 +19,13 @@ import numpy as np
 import tensorflow as tf
 
 import conll
-import coref_ops
+# import coref_ops
 import metrics
-import optimization
+# import optimization
 import util
 from bert import modeling
 from bert import tokenization
-from pytorch_to_tf import load_from_pytorch_checkpoint
+# from pytorch_to_tf import load_from_pytorch_checkpoint
 
 
 
