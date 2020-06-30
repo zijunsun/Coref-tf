@@ -302,14 +302,14 @@ class MentionProposalModel(object):
     ):
         """get mention proposals"""
 
-        input_ids = tf.boolean_mask(input_ids, tf.cast(tf.math.greater_equal(input_ids, tf.zeros_like(input_ids)),tf.bool)) 
-        input_mask = tf.boolean_mask(input_mask, tf.cast(tf.math.greater_equal(input_mask, tf.zeros_like(input_mask)), tf.bool)) 
-        text_len = tf.boolean_mask(text_len, tf.cast(tf.math.greater_equal(text_len, tf.zeros_like(text_len)), tf.bool)) 
-        speaker_ids = tf.boolean_mask(speaker_ids, tf.cast(tf.math.greater_equal(speaker_ids, tf.zeros_like(speaker_ids)),tf.bool)) 
-        gold_starts = tf.boolean_mask(gold_starts, tf.cast(tf.math.greater_equal(gold_starts, tf.zeros_like(gold_starts)),tf.bool)) 
-        gold_ends = tf.boolean_mask(gold_ends, tf.cast(tf.math.greater_equal(gold_ends, tf.zeros_like(gold_ends)),tf.bool)) 
-        cluster_ids = tf.boolean_mask(cluster_ids, tf.cast(tf.math.greater_equal(cluster_ids, tf.zeros_like(cluster_ids)),tf.bool)) 
-        sentence_map = tf.boolean_mask(sentence_map, tf.cast(tf.math.greater_equal(sentence_map, tf.zeros_like(sentence_map)),tf.bool)) 
+        input_ids = tf.where(tf.cast(tf.math.greater_equal(input_ids, tf.zeros_like(input_ids)),tf.bool), x=input_ids, y=tf.zeros_like(input_ids)) 
+        input_mask = tf.where(tf.cast(tf.math.greater_equal(input_mask, tf.zeros_like(input_mask)), tf.bool), x=input_mask, y=tf.zeros_like(input_mask)) 
+        text_len = tf.where(tf.cast(tf.math.greater_equal(text_len, tf.zeros_like(text_len)), tf.bool), x= text_len, y=tf.zeros_like(text_len)) 
+        speaker_ids = tf.where(tf.cast(tf.math.greater_equal(speaker_ids, tf.zeros_like(speaker_ids)),tf.bool), x=speaker_ids, y=tf.zeros_like(speaker_ids)) 
+        gold_starts = tf.where(tf.cast(tf.math.greater_equal(gold_starts, tf.zeros_like(gold_starts)),tf.bool), x=gold_starts, y=tf.zeros_like(gold_starts)) 
+        gold_ends = tf.where(tf.cast(tf.math.greater_equal(gold_ends, tf.zeros_like(gold_ends)),tf.bool), x=gold_ends, y=tf.zeros_like(gold_ends) ) 
+        cluster_ids = tf.where(tf.cast(tf.math.greater_equal(cluster_ids, tf.zeros_like(cluster_ids)),tf.bool), x=cluster_ids, y=tf.zeros_like(cluster_ids)) 
+        sentence_map = tf.where(tf.cast(tf.math.greater_equal(sentence_map, tf.zeros_like(sentence_map)),tf.bool), x=sentence_map, y=tf.zeros_like(sentence_map)) 
 
 
         input_ids = tf.reshape(input_ids, [-1, self.config["max_segment_len"]])
