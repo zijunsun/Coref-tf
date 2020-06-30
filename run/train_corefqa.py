@@ -20,7 +20,7 @@ logger.setLevel(logging.INFO)
 tf.app.flags.DEFINE_string('f', '', 'kernel')
 
 flags = tf.app.flags
-#FLAGS = flags.FLAGS
+FLAGS = flags.FLAGS
 flags.DEFINE_string("output_dir", "data", "The output directory of the model training.")
 flags.DEFINE_bool("do_train", True, "Whether to run training.")
 flags.DEFINE_bool("use_tpu", False, "Whether to use TPU or GPU/CPU.")
@@ -35,7 +35,7 @@ flags.DEFINE_string("gcp_project", None, "[Optional] Project name for the Cloud 
                        "specified, we will attempt to automatically detect the GCE project from metadata.")
 flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
 flags.DEFINE_integer("num_tpu_cores", 1, "Only used if `use_tpu` is True. Total number of TPU cores to use.")
-FLAGS = tf.flags.FLAGS
+#FLAGS = tf.flags.FLAGS
 
 
 def model_fn_builder(config):
@@ -84,7 +84,7 @@ def model_fn_builder(config):
 
         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
-        model = util.get_model(config, model_sign="mention_proposal")
+        model = util.get_model(config, model_sign="corefqa")
   
         if FLAGS.use_tpu:
             def tpu_scaffold():
@@ -179,9 +179,6 @@ def main(_):
 if __name__ == '__main__':
     # main()
     tf.app.run()
-
-
-
 
 
 
