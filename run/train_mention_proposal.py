@@ -66,16 +66,6 @@ def model_fn_builder(config):
         gold_starts = tf.reshape(gold_starts, [-1]) 
         gold_ends = tf.reshape(gold_ends, [-1]) 
         
-        # input_ids =  tf.reshape(features["flattened_input_ids"], [-1, config["max_segment_len"]])
-        # input_mask  = tf.reshape(features["flattened_input_mask"], [-1, config["max_segment_len"]])
-        # text_len = tf.reshape(features["text_len"], [-1])
-        # speaker_ids = tf.reshape(features["speaker_ids"], [-1, config["max_segment_len"]])
-        # genre = features["genre"]
-        # gold_starts = tf.reshape(features["span_starts"], [-1])
-        # gold_ends = tf.reshape(features["span_ends"], [-1])
-        # cluster_ids = tf.reshape(features["cluster_ids"], [-1])
-        # sentence_map = tf.reshape(features["sentence_map"], [-1, config["max_segment_len"]])
-        # sentence_map = tf.reshape(features["sentence_map"], [-1, config["max_segment_len"]])
         tmp_features["input_ids"] = input_ids 
         tmp_features["input_mask"] = input_mask 
         tmp_features["text_len"] = text_len 
@@ -115,12 +105,7 @@ def model_fn_builder(config):
             tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=config['bert_learning_rate'])
             optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
-            # predictions, total_loss = model.get_predictions_and_loss(input_ids, input_mask, \
-            #     text_len, speaker_ids, genre, is_training, gold_starts,
-            #     gold_ends, cluster_ids, sentence_map)
             train_op = optimizer.minimize(total_loss, tf.train.get_global_step()) 
-            # train_op = model.train_op 
-            # prediction, total_loss = model.get_predictions_and_loss() 
         else:
             optimizer = RAdam(learning_rate=config['bert_learning_rate'], epsilon=1e-8, beta1=0.9, beta2=0.999)
             train_op = optimizer.minimize(total_loss, tf.train.get_global_step())
