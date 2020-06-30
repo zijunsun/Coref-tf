@@ -380,12 +380,13 @@ class MentionProposalModel(object):
         k = tf.minimum(3900, tf.to_int32(tf.floor(tf.to_float(num_words) * self.config["top_span_ratio"])))
         c = tf.minimum(self.config["max_top_antecedents"], k)  # 初筛挑出0.4*500=200个候选，细筛再挑出50个候选
         # pull from beam，光使用mention_score卡前0.4*num_words个span  todo(yuxian): check this function
-        top_span_indices = coref_ops.extract_spans(tf.expand_dims(candidate_mention_scores, 0),
-                                                   tf.expand_dims(candidate_starts, 0),
-                                                   tf.expand_dims(candidate_ends, 0),
-                                                   tf.expand_dims(k, 0),
-                                                   num_words,
-                                                   True)  # [1, k]
+        # top_span_indices = coref_ops.extract_spans(tf.expand_dims(candidate_mention_scores, 0),
+        #                                            tf.expand_dims(candidate_starts, 0),
+        #                                            tf.expand_dims(candidate_ends, 0),
+        #                                            tf.expand_dims(k, 0),
+        #                                            num_words,
+        #                                            True)  # [1, k]
+        _, top_span_indices = tf.nn.top_k(candidate_mention_scores, k)
         top_span_indices = tf.reshape(top_span_indices, [-1])  # k个按mention_score初筛出来的candidate的index
 
         # 取出top_k的span的信息，过coarse的span pair筛选，每个span取前c个antecedent
