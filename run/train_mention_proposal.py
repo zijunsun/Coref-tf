@@ -101,7 +101,7 @@ def model_fn_builder(config):
                 text_len, speaker_ids, genre, is_training, gold_starts,
                 gold_ends, cluster_ids, sentence_map)
 
-        if config["tpu"]:
+        if config["device"] == "tpu":
             tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=config['bert_learning_rate'])
             optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
