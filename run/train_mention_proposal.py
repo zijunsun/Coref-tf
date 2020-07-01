@@ -72,7 +72,7 @@ def model_fn_builder(config):
         tmp_features["span_mention"] = span_mention 
 
 
-        tf.logging.info("*** Features ***")
+        tf.logging.info("********* Features *********")
         for name in sorted(tmp_features.keys()):
             tf.logging.info("  name = %s, shape = %s" % (name, tmp_features[name].shape))
 
@@ -118,12 +118,15 @@ def model_fn_builder(config):
         else:
             optimizer = RAdam(learning_rate=config['bert_learning_rate'], epsilon=1e-8, beta1=0.9, beta2=0.999)
             train_op = optimizer.minimize(total_loss, tf.train.get_global_step())
-            
+        
+
+        logging_hook = tf.train.LoggingTensorHook({"loss": total_loss}, every_n_iter=10)
         output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
                 loss=total_loss,
                 train_op=train_op,
-                scaffold_fn=scaffold_fn)
+                scaffold_fn=scaffold_fn,
+                training_hooks=[logging_hook])
 
         # else:
             # is_training = (mode == tf.estimator.ModeKeys.TRAIN)
