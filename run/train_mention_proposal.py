@@ -181,7 +181,7 @@ def main(_):
         use_tpu=FLAGS.use_tpu,
         model_fn=model_fn,
         config=run_config,
-        train_batch_size=1,
+        train_batch_size=5,
         predict_batch_size=1)
 
     seq_length = config["max_segment_len"] * config["max_training_sentences"]
