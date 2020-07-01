@@ -88,9 +88,7 @@ def prepare_training_data(input_data_dir, output_data_dir, input_filename, outpu
 
 
 def write_instance_to_example_file(writer, instance, doc_key, config):
-    # input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends, cluster_ids, sentence_map
     input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends, cluster_ids, sentence_map = instance 
-    # doc_idx, sentence_map, subtoken_map, input_id_windows, mask_windows, span_starts, span_ends, cluster_ids = instance
     input_id_windows = input_ids 
     mask_windows = input_mask 
     flattened_input_ids = [i for j in input_id_windows for i in j]
@@ -280,7 +278,6 @@ def get_speaker_dict(speakers, config):
 
 if __name__ == '__main__':
     # python3 build_data_to_tfrecord.py 
-    #### only data_sign 
     data_sign = "test"
     for sliding_window_size in [128]:
         print("=*="*20)
@@ -304,8 +301,6 @@ if __name__ == '__main__':
             print(output_data_dir, output_filename)
             print("$^$"*30)
             prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, sliding_window_size)
-
-
 
     # prepare demo dataset 
     # config = util.initialize_from_env(use_tpu=False)
