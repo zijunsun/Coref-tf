@@ -76,7 +76,7 @@ class MentionProposalModel(object):
         cluster_ids = tf.reshape(cluster_ids, [-1]) 
         gold_starts = tf.reshape(gold_starts, [-1]) 
         gold_ends = tf.reshape(gold_ends, [-1]) 
-        span_mention = tf.reshape(span_mention, [self.config["max_training_sentences"] * self.config["max_segment_len"], self.config["max_training_sentences"] * self.config["max_segment_len"]])
+        span_mention = tf.reshape(span_mention, [self.config["max_training_sentences"], self.config["max_segment_len"] * self.config["max_segment_len"]])
 
 
         model = modeling.BertModel(
@@ -91,6 +91,13 @@ class MentionProposalModel(object):
         mention_doc = self.flatten_emb_by_sentence(mention_doc, input_mask)  # (b, s, e) -> (b*s, e) 取出有效token的emb
         num_words = util.shape(mention_doc, 0)  # b*s
 
+        seg_mention_doc = tf.reshape(mention_doc, [self.config["max_training_sentences"], self.config["max_segment_len"], -1])
+        start_seg_mention_doc = tf.stack([seg_mention_doc] * self.config["max_segment_len"], axis=1)
+        end_seg_mention_doc = tf.stack([seg_mention_doc, ] * self.config["max_segment_len"], axis=2)
+        span_mention_doc = tf.concat([start_seg_mention_doc, end_seg_mention_doc], axis=-1) 
+        span_mention_doc = tf.reshape(span_mention_doc, (self.config["max_training_sentences"]*self.config["max_segment_len"]*self.config["max_segment_len"], -1))
+        with tf.variable_scope("span_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
+            span_scores = util.ffnn(span_mention_doc, self.config["ffnn_depth"], self.config["ffnn_size"]*2, 1, self.dropout)
         with tf.variable_scope("start_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
             start_scores = util.ffnn(mention_doc, self.config["ffnn_depth"], self.config["ffnn_size"], 1, self.dropout)
         with tf.variable_scope("end_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
@@ -109,9 +116,14 @@ class MentionProposalModel(object):
         # gold_end_label = tf.boolean_mask(gold_end_label, tf.reshape(input_mask, [-1]))
         start_scores = tf.cast(tf.reshape(tf.sigmoid(start_scores), [-1]),tf.float32)
         end_scores = tf.cast(tf.reshape(tf.sigmoid(end_scores), [-1]),tf.float32)
-            
-        loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=start_scores, labels=tf.reshape(gold_start_label, [-1])))
-        loss +=  tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=end_scores, labels=tf.reshape(gold_end_label, [-1])) )
+        span_scores = tf.cast(tf.reshape(tf.sigmoid(span_scores), [-1]), tf.float32)
+        span_mention = tf.cast(span_mention, tf.float32)
+
+        start_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=start_scores, labels=tf.reshape(gold_start_label, [-1]))) 
+        end_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=end_scores, labels=tf.reshape(gold_end_label, [-1])))
+        span_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=span_scores, labels=tf.reshape(span_mention, [-1])))
+        
+        loss = (start_loss + end_loss )/2 + span_loss 
 
         return loss, start_scores, end_scores
 

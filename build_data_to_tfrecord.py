@@ -53,6 +53,7 @@ def write_instance_to_example_file(writer, instance, doc_key, config):
     max_seg_len = int(config["max_segment_len"])
     before_pad_start = gold_starts 
     before_pad_end = gold_ends 
+    before_text_len = text_len 
 
     sentence_map = clip_or_pad(sentence_map, max_sequence_len*max_seg_len, pad_idx=-1)
     text_len = clip_or_pad(text_len, max_sequence_len, pad_idx=-1)
@@ -67,7 +68,8 @@ def write_instance_to_example_file(writer, instance, doc_key, config):
     gold_ends = clip_or_pad(gold_ends, config["max_cluster_num"], pad_idx=-1)
     cluster_ids = clip_or_pad(cluster_ids, config["max_cluster_num"], pad_idx=-1)
 
-    span_mention = pad_span_mention(len(flattened_input_ids), before_pad_start, before_pad_end)
+    # span_mention = pad_span_mention(len(flattened_input_ids), before_pad_start, before_pad_end)
+    span_mention  = pad_span_mention(before_text_len, config, before_pad_start, before_pad_end)
 
     features = {
         'sentence_map': create_int_feature(sentence_map), # 
@@ -96,15 +98,37 @@ def clip_or_pad(var, max_var_len, pad_idx=-1):
         return var 
 
 
-def pad_span_mention(text_len, before_pad_start, before_pad_end):
-    span_mention = np.zeros((text_len, text_len), dtype=int).tolist()
+# def pad_span_mention(text_len, before_pad_start, before_pad_end):
+#     span_mention = np.zeros((text_len, text_len), dtype=int).tolist()
 
-    for tmp_s, tmp_e in zip(before_pad_start, before_pad_end):
-        span_mention[tmp_s][tmp_e] = 1
+#     for tmp_s, tmp_e in zip(before_pad_start, before_pad_end):
+#         span_mention[tmp_s][tmp_e] = 1
 
-    flatten_span_mention = [i for j in span_mention for i in j]
+#     flatten_span_mention = [i for j in span_mention for i in j]
     
-    return flatten_span_mention 
+#     return flatten_span_mention 
+
+
+def pad_span_mention(text_len_lst, config, before_pad_start, before_pad_end):
+    span_mention = np.zeros((config["max_training_sentences"], config["max_segment_len"], config["max_segment_len"]), dtype=int)
+
+    for idx, (tmp_s, tmp_e) in enumerate(zip(before_pad_start, before_pad_end)):
+        start_seg = int(tmp_s // config["max_segment_len"])
+        end_seg = int(tmp_s // config["max_segment_len"])
+        if start_seg != end_seg:
+            continue 
+        sent_idx = int(tmp_s // config["max_segment_len"]) + 1 if tmp_s % config["max_segment_len"] != 0 else int(tmp_s // config["max_segment_len"])
+        start_offset = tmp_s % config["max_segment_len"] 
+        end_offset = tmp_e % config["max_segment_len"]
+
+        span_mention[sent_idx, start_offset, end_offset] = 1 
+
+    flatten_span_mention = np.reshape(span_mention, (1, -1))
+    flatten_span_mention = flatten_span_mention.tolist()
+    flatten_span_mention = [j for j in flatten_span_mention]
+
+    return flatten_span_mention[0]
+
 
     
 
@@ -235,39 +259,43 @@ def get_speaker_dict(speakers, config):
 if __name__ == '__main__':
     # python3 build_data_to_tfrecord.py 
     #### only data_sign 
-    # data_sign = "train"
-    for sliding_window_size in [128, 256]:
-        print("=*="*20)
-        print("current sliding window size is : {}".format(str(sliding_window_size)))
-        print("=*="*20)
-        for data_sign in ["train", "dev", "test"]:
-            print("%*%"*20)
-            print(data_sign)
-            print("%*%"*20)
-            config = util.initialize_from_env(use_tpu=False)
-            language = "english"
-            vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
-            input_data_dir = "/xiaoya/data" 
+    data_sign = "test"
+    # for sliding_window_size in [128, 256]:
+    #     print("=*="*20)
+    #    print("current sliding window size is : {}".format(str(sliding_window_size)))
+    #     print("=*="*20)
+    #     for data_sign in ["train", "dev", "test"]:
+    #         print("%*%"*20)
+    #        print(data_sign)
+    #         print("%*%"*20)
+    #         config = util.initialize_from_env(use_tpu=False)
+    #         language = "english"
+    #         vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
+    #         input_data_dir = "/xiaoya/data" 
 
-            input_filename = "{}.english.{}.jsonlines".format(data_sign, str(sliding_window_size))
+    #         input_filename = "{}.english.{}.jsonlines".format(data_sign, str(sliding_window_size))
     
-            # prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
-            output_data_dir = "/xiaoya/tpu_data/mention_proposal/all_{}_{}".format(str(sliding_window_size), str(config["max_training_sentences"]))
-            os.makedirs(output_data_dir, exist_ok=True)
-            output_filename = "{}.english.jsonlines".format(data_sign)
-            prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, sliding_window_size)
+    #         # prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
+    #         output_data_dir = "/xiaoya/tpu_data/mention_proposal/all_{}_{}".format(str(sliding_window_size), str(config["max_training_sentences"]))
+    #         os.makedirs(output_data_dir, exist_ok=True)
+    #         output_filename = "{}.english.jsonlines".format(data_sign)
+    #         prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, sliding_window_size)
 
 
 
     # prepare demo dataset 
-    # input_data_dir = "/xiaoya/data" 
-    # input_filename = "{}.english.128.jsonlines".format(data_sign)
-    # sliding_window_size = 128
+    config = util.initialize_from_env(use_tpu=False)
+    vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
+    input_data_dir = "/xiaoya/data" 
+    language = "english"
+    input_filename = "{}.english.128.jsonlines".format(data_sign)
+    sliding_window_size = 128
+    output_data_dir = "/xiaoya/tpu_data/mention_proposal/test_span"
     # output_data_dir = "/xiaoya/tpu_data/mention_proposal/demo_128_{}".format(str(config["max_training_sentences"]))
-    # os.makedirs(output_data_dir, exist_ok=True)
-    # output_filename = "{}.english.jsonlines".format(data_sign)
+    os.makedirs(output_data_dir, exist_ok=True)
+    output_filename = "{}.english.jsonlines".format(data_sign)
 
-    # prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, \
-    #     sliding_window_size, demo=True)
+    prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, \
+        sliding_window_size, demo=True)
 
 
