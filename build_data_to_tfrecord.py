@@ -15,7 +15,9 @@ subtoken_maps = {}
 gold = {}
 
 
+
 def prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size):
+
     tokenizer = FullTokenizer(vocab_file=vocab_file, do_lower_case=False)
     # for dataset in ['train', 'dev', 'test']:
     writer = tf.python_io.TFRecordWriter(os.path.join(data_dir, "{}.{}.tfrecord".format(filename, language)))
@@ -28,16 +30,14 @@ def prepare_training_data(data_dir, language, filename, config, vocab_file, slid
         doc_key = document["doc_key"]
         tensorized = tensorize_example(document, config, tokenizer, is_training=True)
         if type(tensorized) is not tuple:
-            tensorized = tuple(tensorized)
-            # input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends, cluster_ids, sentence_map
-            # 
-        write_instance_to_example_file(writer, tensorized, doc_key)
+            tensorized = tuple(tensorized) 
+        write_instance_to_example_file(writer, tensorized, doc_key, config)
     with open(os.path.join(data_dir, "{}.{}.map".format(filename, language)), 'w') as fo:
         json.dump(doc_map, fo, indent=2)
 
 
 
-def write_instance_to_example_file(writer, instance, doc_key):
+def write_instance_to_example_file(writer, instance, doc_key, config):
     # input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends, cluster_ids, sentence_map
     input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends, cluster_ids, sentence_map = instance 
     # doc_idx, sentence_map, subtoken_map, input_id_windows, mask_windows, span_starts, span_ends, cluster_ids = instance
@@ -46,29 +46,65 @@ def write_instance_to_example_file(writer, instance, doc_key):
     flattened_input_ids = [i for j in input_id_windows for i in j]
     flattened_input_mask = [i for j in mask_windows for i in j]
     cluster_ids = [int(tmp) for tmp in cluster_ids]
-    # print(cluster_ids )
-    # print("check cluster ids ")
-    # exit()
-    # input_ids, input_mask,   genre,  
-    # print(subtoken_maps)
-    # print("check subtoken map")
-    # exit()
+
+    max_sequence_len = int(config["max_training_sentences"])
+    max_seg_len = int(config["max_segment_len"])
+    before_pad_start = gold_starts 
+    before_pad_end = gold_ends 
+
+    sentence_map = clip_or_pad(sentence_map, max_sequence_len*max_seg_len, pad_idx=-1)
+    text_len = clip_or_pad(text_len, max_sequence_len, pad_idx=-1)
+    tmp_subtoken_maps = clip_or_pad(subtoken_maps[doc_key], max_sequence_len*max_seg_len, pad_idx=-1)
+
+    tmp_speaker_ids = clip_or_pad(speaker_ids[0], max_sequence_len*max_seg_len, pad_idx=-1)
+
+    flattened_input_ids = clip_or_pad(flattened_input_ids, max_sequence_len*max_seg_len, pad_idx=-1)
+    flattened_input_mask = clip_or_pad(flattened_input_mask, max_sequence_len*max_seg_len, pad_idx=-1)
+    # genre = clip_or_pad(genre, )
+    gold_starts = clip_or_pad(gold_starts, config["max_cluster_num"], pad_idx=-1)
+    gold_ends = clip_or_pad(gold_ends, config["max_cluster_num"], pad_idx=-1)
+    cluster_ids = clip_or_pad(cluster_ids, config["max_cluster_num"], pad_idx=-1)
+
+    span_mention = pad_span_mention(len(flattened_input_ids), before_pad_start, before_pad_end)
+
     features = {
         'sentence_map': create_int_feature(sentence_map), # 
         'text_len': create_int_feature(text_len), # 
-        'subtoken_map': create_int_feature(subtoken_maps[doc_key]),  # 
-        'speaker_ids': create_int_feature(speaker_ids[0]), # 
+        'subtoken_map': create_int_feature(tmp_subtoken_maps),  # 
+        'speaker_ids': create_int_feature(tmp_speaker_ids), # 
         'flattened_input_ids': create_int_feature(flattened_input_ids),
         'flattened_input_mask': create_int_feature(flattened_input_mask),
         'genre': create_int_feature([genre]),
         'span_starts': create_int_feature(gold_starts), # 
         'span_ends': create_int_feature(gold_ends), # 
-        'cluster_ids': create_int_feature(cluster_ids), # 
+        'cluster_ids': create_int_feature(cluster_ids),
+        'span_mention': create_int_feature(span_mention) # 
     }
     tf_example = tf.train.Example(features=tf.train.Features(feature=features))
     writer.write(tf_example.SerializeToString())
 
 
+def clip_or_pad(var, max_var_len, pad_idx=-1):
+    
+    if len(var) >= max_var_len:
+        return var[:max_var_len]
+    else:
+        pad_var  = (max_var_len - len(var)) * [pad_idx]
+        var = list(var) + list(pad_var) 
+        return var 
+
+
+def pad_span_mention(text_len, before_pad_start, before_pad_end):
+    span_mention = np.zeros((text_len, text_len), dtype=int).tolist()
+
+    for tmp_s, tmp_e in zip(before_pad_start, before_pad_end):
+        span_mention[tmp_s][tmp_e] = 1
+
+    flatten_span_mention = [i for j in span_mention for i in j]
+    
+    return flatten_span_mention 
+
+    
 
 def create_int_feature(values):
     feature = tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
@@ -127,11 +163,28 @@ def tensorize_example(example, config, tokenizer, is_training):
 
     if  len(sentences) > config["max_training_sentences"]:
         # if config['single_example']:
-        return truncate_example(config, *example_tensors)
+        # return truncate_example(config, *example_tensors)
         # else:
-        #     offsets = range(config['max_training_sentences'], len(sentences), config['max_training_sentences'])
-        #     tensor_list = [truncate_example(config, *(example_tensors + (offset,))) for offset in offsets]
-        #     return tensor_list
+        offsets = range(config['max_training_sentences'], len(sentences), config['max_training_sentences'])
+        tensor_list = [truncate_example(config, *(example_tensors + (offset,))) for offset in offsets]
+        #         input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends, cluster_ids, sentence_map = tensor_list[0]
+        # xiaoya : to do tensor_list[0], tensor_list[i] 
+        input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends, cluster_ids, sentence_map = tensor_list[0]
+
+        #####################################################
+        # please check the tensor list : 
+        # 1
+        # input_ids Tensor("Shape:0", shape=(2,), dtype=int32)
+        # input_mask Tensor("Shape_1:0", shape=(2,), dtype=int32)
+        # text_len Tensor("Shape_2:0", shape=(1,), dtype=int32)
+        # speaker_ids Tensor("Shape_3:0", shape=(2,), dtype=int32)
+        # genre Tensor("Shape_4:0", shape=(0,), dtype=int32)
+        # sentence_map Tensor("Shape_5:0", shape=(1,), dtype=int32)
+        # cluster_ids Tensor("Shape_6:0", shape=(1,), dtype=int32)
+        # gold_starts Tensor("Shape_7:0", shape=(1,), dtype=int32)
+        # gold_ends Tensor("Shape_8:0", shape=(1,), dtype=int32)
+        # ###################################################
+        return tensor_list[0]
     else:
         return example_tensors
 
@@ -180,13 +233,15 @@ def get_speaker_dict(speakers, config):
 
 if __name__ == '__main__':
     # python3 build_data_to_tfrecord.py train_spanbert_base
-    config = util.initialize_from_env()
-    data_dir = "/xiaoya/data"
+    config = util.initialize_from_env(use_tpu=False)
+    data_dir = "/xiaoya/test_data_gen"
     language = "english"
     vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
-    filename = "test.english.128.jsonlines"
     # filename = "dev.english.128.jsonlines"
+    # filename = "dev.english.128.jsonlines"
+    filename = "test.english.128.jsonlines"
     sliding_window_size = 128
+    # prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
     prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
 
 
