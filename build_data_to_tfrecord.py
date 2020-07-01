@@ -15,7 +15,9 @@ subtoken_maps = {}
 gold = {}
 
 
+
 def prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size):
+
     tokenizer = FullTokenizer(vocab_file=vocab_file, do_lower_case=False)
     # for dataset in ['train', 'dev', 'test']:
     writer = tf.python_io.TFRecordWriter(os.path.join(data_dir, "{}.{}.tfrecord".format(filename, language)))
@@ -47,6 +49,8 @@ def write_instance_to_example_file(writer, instance, doc_key, config):
 
     max_sequence_len = int(config["max_training_sentences"])
     max_seg_len = int(config["max_segment_len"])
+    before_pad_start = gold_starts 
+    before_pad_end = gold_ends 
 
     sentence_map = clip_or_pad(sentence_map, max_sequence_len*max_seg_len, pad_idx=-1)
     text_len = clip_or_pad(text_len, max_sequence_len, pad_idx=-1)
@@ -61,6 +65,8 @@ def write_instance_to_example_file(writer, instance, doc_key, config):
     gold_ends = clip_or_pad(gold_ends, config["max_cluster_num"], pad_idx=-1)
     cluster_ids = clip_or_pad(cluster_ids, config["max_cluster_num"], pad_idx=-1)
 
+    span_mention = pad_span_mention(len(flattened_input_ids), before_pad_start, before_pad_end)
+
     features = {
         'sentence_map': create_int_feature(sentence_map), # 
         'text_len': create_int_feature(text_len), # 
@@ -71,7 +77,8 @@ def write_instance_to_example_file(writer, instance, doc_key, config):
         'genre': create_int_feature([genre]),
         'span_starts': create_int_feature(gold_starts), # 
         'span_ends': create_int_feature(gold_ends), # 
-        'cluster_ids': create_int_feature(cluster_ids), # 
+        'cluster_ids': create_int_feature(cluster_ids),
+        'span_mention': create_int_feature(span_mention) # 
     }
     tf_example = tf.train.Example(features=tf.train.Features(feature=features))
     writer.write(tf_example.SerializeToString())
@@ -86,6 +93,18 @@ def clip_or_pad(var, max_var_len, pad_idx=-1):
         var = list(var) + list(pad_var) 
         return var 
 
+
+def pad_span_mention(text_len, before_pad_start, before_pad_end):
+    span_mention = np.zeros((text_len, text_len), dtype=int).tolist()
+
+    for tmp_s, tmp_e in zip(before_pad_start, before_pad_end):
+        span_mention[tmp_s][tmp_e] = 1
+
+    flatten_span_mention = [i for j in span_mention for i in j]
+    
+    return flatten_span_mention 
+
+    
 
 def create_int_feature(values):
     feature = tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
@@ -214,14 +233,15 @@ def get_speaker_dict(speakers, config):
 
 if __name__ == '__main__':
     # python3 build_data_to_tfrecord.py train_spanbert_base
-    config = util.initialize_from_env()
+    config = util.initialize_from_env(use_tpu=False)
     data_dir = "/xiaoya/test_data_gen"
     language = "english"
     vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
     # filename = "dev.english.128.jsonlines"
     # filename = "dev.english.128.jsonlines"
-    filename = "train.english.128.jsonlines"
+    filename = "test.english.128.jsonlines"
     sliding_window_size = 128
+    # prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
     prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
 
 

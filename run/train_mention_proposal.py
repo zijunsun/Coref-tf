@@ -58,6 +58,7 @@ def model_fn_builder(config):
         gold_ends = features["span_ends"]
         cluster_ids = features["cluster_ids"]
         sentence_map = features["sentence_map"] 
+        span_mention = features["span_mention"]
         
         tmp_features["input_ids"] = input_ids 
         tmp_features["input_mask"] = input_mask 
@@ -69,6 +70,7 @@ def model_fn_builder(config):
         tmp_features["speaker_ids"] = speaker_ids
         tmp_features["cluster_ids"] = cluster_ids
         tmp_features["sentence_map"] = sentence_map
+        tmp_features["span_mention"] = span_mention 
 
 
         tf.logging.info("*** Features ***")
@@ -113,7 +115,7 @@ def model_fn_builder(config):
         # optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config['bert_learning_rate'])
         total_loss, pred_mention_labels, gold_mention_labels = model.get_mention_proposal_and_loss(input_ids, input_mask, \
                 text_len, speaker_ids, genre, is_training, gold_starts,
-                gold_ends, cluster_ids, sentence_map)
+                gold_ends, cluster_ids, sentence_map, span_mention)
 
         if config["device"] == "tpu":
             tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))

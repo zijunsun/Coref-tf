@@ -26,6 +26,7 @@ import util
 from bert import modeling
 from bert import tokenization
 # from pytorch_to_tf import load_from_pytorch_checkpoint
+from tensorflow.python.ops.gen_array_ops import *
 
 
 
@@ -298,7 +299,7 @@ class MentionProposalModel(object):
 
     def get_mention_proposal_and_loss(
         self, input_ids, input_mask, text_len, speaker_ids, genre, is_training,
-        gold_starts, gold_ends, cluster_ids, sentence_map
+        gold_starts, gold_ends, cluster_ids, sentence_map, span_mention
     ):
         """get mention proposals"""
 
@@ -320,6 +321,7 @@ class MentionProposalModel(object):
         cluster_ids = tf.reshape(cluster_ids, [-1]) 
         gold_starts = tf.reshape(gold_starts, [-1]) 
         gold_ends = tf.reshape(gold_ends, [-1]) 
+        span_mention = tf.reshape(span_mention, [self.config["max_training_sentences"] * self.config["max_segment_len"], self.config["max_training_sentences"] * self.config["max_segment_len"]])
 
 
         model = modeling.BertModel(
@@ -334,33 +336,59 @@ class MentionProposalModel(object):
         mention_doc = self.flatten_emb_by_sentence(mention_doc, input_mask)  # (b, s, e) -> (b*s, e) 取出有效token的emb
         num_words = util.shape(mention_doc, 0)  # b*s
 
+        # mention_doc_start = tf.unsqueeze()
+        # mention_doc_end = 
+        # mention_doc_span = tf.concat()
+        with tf.variable_scope("start_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
+            start_scores = util.ffnn(mention_doc, self.config["ffnn_depth"], self.config["ffnn_size"], 1, self.dropout)
+            # start_scores = tf.sigmoid(start_scores)
+        with tf.variable_scope("end_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
+            end_scores = util.ffnn(mention_doc, self.config["ffnn_depth"], self.config["ffnn_size"], 1, self.dropout)
+            # end_scores = tf.sigmoid(end_scores)
+
+        gold_start_label = tf.reshape(gold_starts, [-1, 1])
+        start_value = tf.reshape(tf.ones_like(gold_starts), [-1])
+        start_shape = tf.constant([self.config["max_training_sentences"] * self.config["max_segment_len"]])
+        gold_start_label = tf.cast(tf.scatter_nd(gold_start_label, start_value, start_shape),tf.float64) 
+
+        gold_end_label = tf.reshape(gold_ends, [-1, 1])
+        end_value = tf.reshape(tf.ones_like(gold_ends), [-1])
+        end_shape = tf.constant([self.config["max_training_sentences"] * self.config["max_segment_len"]])
+        gold_end_label = tf.cast(tf.scatter_nd(gold_end_label, end_value, end_shape), tf.float64)
+            
+
+        loss  = tf.math.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(start_scores, [-1]),tf.float64), labels=tf.reshape(gold_start_label, [-1])))
+        loss +=  tf.math.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(end_scores, [-1]),tf.float64), labels=tf.reshape(gold_end_label, [-1])) )
+
+        return loss, start_scores, end_scores
+
         # candidate_span: 每个位置都可能是起点，对每个起点有max_span_width种不同的终点，总共有(num_words, max_span_width)种可能
-        candidate_starts = tf.tile(tf.expand_dims(tf.range(num_words), 1), [1, self.max_span_width])
-        candidate_ends = candidate_starts + tf.expand_dims(tf.range(self.max_span_width), 0)
+        #######candidate_starts = tf.tile(tf.expand_dims(tf.range(num_words), 1), [1, self.max_span_width])
+        #######candidate_ends = candidate_starts + tf.expand_dims(tf.range(self.max_span_width), 0)
 
         # [num_words, max_span_width]，根据index将对应位置的sentence_id取出来
-        candidate_start_sentence_indices = tf.gather(sentence_map, candidate_starts)
-        candidate_end_sentence_indices = tf.gather(sentence_map, tf.minimum(candidate_ends, num_words - 1))
+        #######candidate_start_sentence_indices = tf.gather(sentence_map, candidate_starts)
+        #######candidate_end_sentence_indices = tf.gather(sentence_map, tf.minimum(candidate_ends, num_words - 1))
         # [num_words, max_span_width]，合法的span需要满足start/end不能越界；start/end必须在同一个句子里
-        candidate_mask = tf.logical_and(candidate_ends < num_words,
-                                        tf.equal(candidate_start_sentence_indices, candidate_end_sentence_indices))
-        flattened_candidate_mask = tf.reshape(candidate_mask, [-1])  # [num_words * max_span_width]
+        #######candidate_mask = tf.logical_and(candidate_ends < num_words,
+        #######                                tf.equal(candidate_start_sentence_indices, candidate_end_sentence_indices))
+        #######flattened_candidate_mask = tf.reshape(candidate_mask, [-1])  # [num_words * max_span_width]
         # [num_candidates] 把候选span mask掉再铺平
-        candidate_starts = tf.boolean_mask(tf.reshape(candidate_starts, [-1]), flattened_candidate_mask)
-        candidate_ends = tf.boolean_mask(tf.reshape(candidate_ends, [-1]),
-                                         flattened_candidate_mask)  # [num_candidates]
+        #######candidate_starts = tf.boolean_mask(tf.reshape(candidate_starts, [-1]), flattened_candidate_mask)
+        #######candidate_ends = tf.boolean_mask(tf.reshape(candidate_ends, [-1]),
+        #######                                 flattened_candidate_mask)  # [num_candidates]
 
-        candidate_cluster_ids = self.get_candidate_labels(candidate_starts, candidate_ends, gold_starts, gold_ends,
-                                                          cluster_ids)  # [num_candidates] 每个候选span的cluster_id
-        candidate_binary_labels = candidate_cluster_ids > 0
+        #######candidate_cluster_ids = self.get_candidate_labels(candidate_starts, candidate_ends, gold_starts, gold_ends,
+        #######                                                 cluster_ids)  # [num_candidates] 每个候选span的cluster_id
+        #######candidate_binary_labels = candidate_cluster_ids > 0
         # [num_candidates, emb] 候选答案的向量表示  [num_candidates,] 候选答案的得分
-        candidate_span_emb = self.get_span_emb(mention_doc, candidate_starts, candidate_ends)
-        candidate_mention_scores = self.get_mention_scores(candidate_span_emb, candidate_starts, candidate_ends)
-        pred_probs = tf.sigmoid(candidate_mention_scores)
-        pred_labels = pred_probs > 0.5
-        mention_proposal_loss = self.bce_loss(y_pred=pred_probs,
-                                              y_true=tf.cast(candidate_binary_labels, tf.float64))
-        return mention_proposal_loss, pred_labels, candidate_binary_labels
+        #######candidate_span_emb = self.get_span_emb(mention_doc, candidate_starts, candidate_ends)
+        #######candidate_mention_scores = self.get_mention_scores(candidate_span_emb, candidate_starts, candidate_ends)
+        #######pred_probs = tf.sigmoid(candidate_mention_scores)
+        #######pred_labels = pred_probs > 0.5
+        #######mention_proposal_loss = self.bce_loss(y_pred=pred_probs,
+        #######                                      y_true=tf.cast(candidate_binary_labels, tf.float64))
+        #######return mention_proposal_loss, pred_labels, candidate_binary_labels
 
     def get_predictions_and_loss(self, input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts,
                                  gold_ends, cluster_ids, sentence_map):
@@ -675,6 +703,17 @@ class MentionProposalModel(object):
             raise ValueError("Unsupported rank: {}".format(emb_rank))
         return tf.boolean_mask(flattened_emb, tf.reshape(text_len_mask, [num_sentences * max_sentence_length]))
 
+
+    def boolean_mask(self, input_tensor, mask_tensor):
+        """
+        Desc:
+            pass 
+        """
+        mask_tensor = tf.cast(mask_tensor, tf.int32)
+        masked_input = tf.multiply(input_tensor, mask_tensor)
+        return masked_input 
+
+
     def get_predicted_antecedents(self, antecedents, antecedent_scores):
         """
         获得每个mention最可能的antecedent
@@ -827,63 +866,7 @@ class MentionProposalModel(object):
         """
         mention_span_score = tf.reshape(mention_span_score, [-1])
         gold_mention_span = tf.reshape(gold_mention_span, [-1])
-        return tf.nn.sigmoid_cross_entropy_with_logits(labels=gold_mention_span, logits=mention_span_score)
-
-    @tf.function
-    def qa_loop_body(self, i, input_ids, input_mask, starts, ends, labels, cluster_mention_score, scores, ):
-        num_windows = tf.shape(input_ids)[0]
-        question_tokens = self.get_question_token_ids(sentence_map, input_ids, input_mask, tf.gather(top_span_starts, i), tf.gather(top_span_ends, i))  
-
-        tiled_question = tf.tile(tf.expand_dims(question_tokens, 0),[num_windows, 1])  # (num_windows, num_ques_tokens)
-        question_ones = tf.ones_like(tiled_question, dtype=tf.int32)
-        actual_mask = tf.cast(tf.not_equal(input_mask, self.config.pad_idx), tf.int32)  # (num_windows, window_size)
-        qa_input_ids = tf.concat([tiled_question, input_ids], 1)  # (num_windows, num_ques_tokens + window_size)
-        qa_input_mask = tf.concat([question_ones, actual_mask], 1)  # (num_windows, num_ques_tokens + window_size)
-        forward_bert_embeddings = self.get_bert_embeddings(qa_input_ids, qa_input_mask, self.is_training)  # (num_tokens, embed_size)
-
-        flattened_embeddings = tf.reshape(forward_bert_embeddings, [-1, self.config["hidden_size"]])
-        output_mask = tf.concat([-1 * question_ones, input_mask], 1)  # (num_windows, num_ques_tokens + window_size)
-        flattened_mask = tf.reshape(tf.greater_equal(output_mask, 0), [-1])
-        qa_embeddings = tf.boolean_mask(flattened_embeddings, flattened_mask)  # (num_tokens, embed_size)
-        forward_candidate_embeddings = self.get_span_emb(qa_embeddings, candidate_starts, candidate_ends)  
-        # [num_candidates, embed_size]
-
-        forward_candidate_mention_scores = utils.ffnn(forward_candidate_embeddings, self.config["ffnn_depth"], 
-                    self.config["ffnn_size"], 1, dropout)  # [num_candidates]
-        top_span_scores, tmp_top_span_indices = tf.nn.top_k(forward_candidate_mention_scores, self.c)
-        tmp_candidate_start_prune = tf.gather(candidate_starts, tmp_top_span_indices)  # [k]
-        tmp_candidate_end_prune = tf.gather(candidate_ends, tmp_top_span_indices)  # [k]
-        back_score = []
-        for tmp_start, tmp_end, tmp_idx in zip(tmp_candidate_start_prune, tmp_candidate_end_prune, tmp_top_span_indices):
-            tmp_q = self.get_question_token_ids(sentence_map, flattened_input_ids, \
-            flattened_input_mask, tmp_start, tmp_end)
-
-            tiled_question = tf.tile(tf.expand_dims(tmp_q, 0),
-                                     [num_windows, 1])  # (num_windows, num_ques_tokens)
-
-            question_ones = tf.ones_like(tiled_question, dtype=tf.int32)
-            qa_input_ids = tf.concat([tiled_question, input_ids], 1)  # (num_windows, num_ques_tokens + window_size)
-            qa_input_mask = tf.concat([question_ones, actual_mask], 1)  # (num_windows, num_ques_tokens + window_size)
-            bert_embeddings = self.get_bert_embeddings(qa_input_ids, qa_input_mask, self.is_training)  # (num_tokens, embed_size)
-            flattened_embeddings = tf.reshape(bert_embeddings, [-1, self.config["hidden_size"]])
-            output_mask = tf.concat([-1 * question_ones, input_mask], 1)  # (num_windows, num_ques_tokens + window_size)
-            flattened_mask = tf.reshape(tf.greater_equal(output_mask, 0), [-1])
-            qa_embeddings = tf.boolean_mask(flattened_embeddings, flattened_mask)  # (num_tokens, embed_size)
-
-            tmp_candidate_embeddings = self.get_span_emb(qa_embeddings, [top_span_starts[i]], [top_span_ends[i]])
-
-            back_candidate_mention_score = utils.ffnn(tmp_candidate_embeddings, self.config.ffnn_depth, self.config.ffnn_size,
-                                                  1, dropout)
-            back_candidate_mention_score = back_candidate_mention_score / 2.0 * (1 - 0.5) + 0.5 * candidate_mention_scores[tmp_idx]
-            back_score.append(back_candidate_mention_score)
-
-        backward_candidate_mention_score = tf.stack(back_score, axis=0)
-        cluster_mention_scores = top_span_scores[i] / 2.0 * (1 - 0.5) + backward_candidate_mention_score + self.config.score_weight * candidate_mention_scores[i] 
-        qa_scores, qa_indices = tf.nn.top_k(cluster_mention_scores, k)
-        qa_starts = tf.gather(candidate_starts, top_span_indices)  # [k]
-        qa_ends = tf.gather(candidate_ends, top_span_indices)  # [k]
-        
-        return qa_starts, qa_ends, qa_scores, qa_indices 
+        return tf.nn.sigmoid_cross_entropy_with_logits(labels=gold_mention_span, logits=mention_span_score) 
 
     def get_question_token_ids(self, sentence_map, flattened_input_ids, flattened_input_mask, top_start, top_end):
         """
