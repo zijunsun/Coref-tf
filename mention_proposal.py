@@ -107,8 +107,8 @@ class MentionProposalModel(object):
         end_shape = tf.constant([self.config["max_training_sentences"] * self.config["max_segment_len"]])
         gold_end_label = tf.cast(tf.scatter_nd(gold_end_label, end_value, end_shape), tf.float32)
         # gold_end_label = tf.boolean_mask(gold_end_label, tf.reshape(input_mask, [-1]))
-        start_scores = tf.cast(tf.reshape(tf.sigmoid(tf.log(start_scores)), [-1]),tf.float32)
-        end_scores = tf.cast(tf.reshape(tf.sigmoid(tf.log(end_scores)), [-1]),tf.float32)
+        start_scores = tf.cast(tf.reshape(tf.sigmoid(start_scores), [-1]),tf.float32)
+        end_scores = tf.cast(tf.reshape(tf.sigmoid(end_scores), [-1]),tf.float32)
             
         loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=start_scores, labels=tf.reshape(gold_start_label, [-1])))
         loss +=  tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=end_scores, labels=tf.reshape(gold_end_label, [-1])) )
