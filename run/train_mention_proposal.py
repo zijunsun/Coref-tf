@@ -117,7 +117,8 @@ def model_fn_builder(config):
         if config["device"] == "tpu":
             tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
             # optimizer = RAdam(learning_rate=config['bert_learning_rate'], epsilon=1e-8, beta1=0.9, beta2=0.999)
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate=config['bert_learning_rate'])
+            # optimizer = tf.train.GradientDescentOptimizer(learning_rate=config['bert_learning_rate'])
+            optimizer = tf.train.AdamOptimizer(learning_rate=config['bert_learning_rate'], beta1=0.9, beta2=0.999, epsilon=1e-08)
             optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
             train_op = optimizer.minimize(total_loss, tf.train.get_global_step()) 
         else:
