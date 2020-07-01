@@ -79,6 +79,7 @@ def prepare_training_data(input_data_dir, output_data_dir, input_filename, outpu
         if type(tensorized) is not tuple:
             tensorized = tuple(tensorized) 
         write_instance_to_example_file(writer, tensorized, doc_key, config)
+        doc_map[doc_idx] = doc_key
         if demo and doc_idx > 5:
             break 
     with open(os.path.join(output_data_dir, "{}.{}.map".format(output_filename, language)), 'w') as fo:
