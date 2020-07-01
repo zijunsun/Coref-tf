@@ -350,11 +350,13 @@ class MentionProposalModel(object):
         start_value = tf.reshape(tf.ones_like(gold_starts), [-1])
         start_shape = tf.constant([self.config["max_training_sentences"] * self.config["max_segment_len"]])
         gold_start_label = tf.cast(tf.scatter_nd(gold_start_label, start_value, start_shape),tf.float64) 
+        # gold_start_label = tf.boolean_mask(gold_start_label, tf.reshape(input_mask, [-1]))
 
         gold_end_label = tf.reshape(gold_ends, [-1, 1])
         end_value = tf.reshape(tf.ones_like(gold_ends), [-1])
         end_shape = tf.constant([self.config["max_training_sentences"] * self.config["max_segment_len"]])
         gold_end_label = tf.cast(tf.scatter_nd(gold_end_label, end_value, end_shape), tf.float64)
+        # gold_end_label = tf.boolean_mask(gold_end_label, tf.reshape(input_mask, [-1]))
             
 
         loss  = tf.math.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(start_scores, [-1]),tf.float64), labels=tf.reshape(gold_start_label, [-1])))
@@ -701,7 +703,8 @@ class MentionProposalModel(object):
             flattened_emb = tf.reshape(emb, [num_sentences * max_sentence_length, util.shape(emb, 2)])
         else:
             raise ValueError("Unsupported rank: {}".format(emb_rank))
-        return tf.boolean_mask(flattened_emb, tf.reshape(text_len_mask, [num_sentences * max_sentence_length]))
+        return flattened_emb 
+        ##### return tf.boolean_mask(flattened_emb, tf.reshape(text_len_mask, [num_sentences * max_sentence_length]))
 
 
     def boolean_mask(self, input_tensor, mask_tensor):
