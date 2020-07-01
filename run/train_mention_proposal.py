@@ -86,8 +86,7 @@ def model_fn_builder(config):
         # If you're using TF weights only, tf_checkpoint and init_checkpoint can be the same
         # Get the assignment map from the tensorflow checkpoint.
         # Depending on the extension, use TF/Pytorch to load weights.
-        assignment_map, initialized_variable_names = get_assignment_map_from_checkpoint(tvars, config[
-            'tf_checkpoint'])
+        assignment_map, initialized_variable_names = get_assignment_map_from_checkpoint(tvars, config['tf_checkpoint'])
         init_from_checkpoint = tf.train.init_from_checkpoint # if config['init_checkpoint'].endswith('ckpt') # else load_from_pytorch_checkpoint
         
         ########################################################################
@@ -108,9 +107,7 @@ def model_fn_builder(config):
             init_string = ""
             if var.name in initialized_variable_names:
                 init_string = ", *INIT_FROM_CKPT*"
-            # tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape,
-            # init_string)
-            print("  name = %s, shape = %s%s" % (var.name, var.shape, init_string))
+            tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape, init_string)
 
         # optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config['bert_learning_rate'])
         total_loss, pred_mention_labels, gold_mention_labels = model.get_mention_proposal_and_loss(input_ids, input_mask, \
