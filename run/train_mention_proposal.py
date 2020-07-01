@@ -119,8 +119,7 @@ def model_fn_builder(config):
             optimizer = RAdam(learning_rate=config['bert_learning_rate'], epsilon=1e-8, beta1=0.9, beta2=0.999)
             train_op = optimizer.minimize(total_loss, tf.train.get_global_step())
         
-
-        logging_hook = tf.train.LoggingTensorHook({"loss": total_loss}, every_n_iter=1000000)
+        logging_hook = tf.train.LoggingTensorHook({"loss": total_loss}, every_n_iter=1)
         output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
                 loss=total_loss,
