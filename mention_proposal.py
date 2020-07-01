@@ -99,22 +99,22 @@ class MentionProposalModel(object):
         gold_start_label = tf.reshape(gold_starts, [-1, 1])
         start_value = tf.reshape(tf.ones_like(gold_starts), [-1])
         start_shape = tf.constant([self.config["max_training_sentences"] * self.config["max_segment_len"]])
-        gold_start_label = tf.cast(tf.scatter_nd(gold_start_label, start_value, start_shape),tf.float64) 
+        gold_start_label = tf.cast(tf.scatter_nd(gold_start_label, start_value, start_shape),tf.float32) 
         # gold_start_label = tf.boolean_mask(gold_start_label, tf.reshape(input_mask, [-1]))
 
         gold_end_label = tf.reshape(gold_ends, [-1, 1])
         end_value = tf.reshape(tf.ones_like(gold_ends), [-1])
         end_shape = tf.constant([self.config["max_training_sentences"] * self.config["max_segment_len"]])
-        gold_end_label = tf.cast(tf.scatter_nd(gold_end_label, end_value, end_shape), tf.float64)
+        gold_end_label = tf.cast(tf.scatter_nd(gold_end_label, end_value, end_shape), tf.float32)
         # gold_end_label = tf.boolean_mask(gold_end_label, tf.reshape(input_mask, [-1]))
-        start_scores = tf.cast(tf.reshape(tf.sigmoid(start_scores), [-1]),tf.float64)
-        end_scores = tf.cast(tf.reshape(tf.sigmoid(end_scores), [-1]),tf.float64)
+        start_scores = tf.cast(tf.reshape(tf.sigmoid(start_scores), [-1]),tf.float32)
+        end_scores = tf.cast(tf.reshape(tf.sigmoid(end_scores), [-1]),tf.float32)
             
         # loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(tf.sigmoid(start_scores), [-1]),tf.float32), labels=tf.reshape(gold_start_label, [-1])))
         # loss +=  tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(tf.sigmoid(end_scores), [-1]),tf.float32), labels=tf.reshape(gold_end_label, [-1])) )
 
-        loss = self.bce_loss(y_pred=start_scores, y_true=tf.cast(tf.reshape(gold_start_label, [-1]), tf.float64))
-        loss += self.bce_loss(y_pred=end_scores, y_true=tf.cast(tf.reshape(gold_end_label, [-1]), tf.float64))
+        loss = self.bce_loss(y_pred=start_scores, y_true=tf.cast(tf.reshape(gold_start_label, [-1]), tf.float32))
+        loss += self.bce_loss(y_pred=end_scores, y_true=tf.cast(tf.reshape(gold_end_label, [-1]), tf.float32))
 
         return loss, start_scores, end_scores
 
