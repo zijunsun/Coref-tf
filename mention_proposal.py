@@ -123,7 +123,7 @@ class MentionProposalModel(object):
         end_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=end_scores, labels=tf.reshape(gold_end_label, [-1])))
         span_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=span_scores, labels=tf.reshape(span_mention, [-1])))
         
-        loss = (start_loss + end_loss )/2 + span_loss 
+        loss = (start_loss + end_loss )/2  + span_loss 
 
         return loss, start_scores, end_scores
 
