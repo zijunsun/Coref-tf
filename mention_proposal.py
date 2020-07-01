@@ -18,15 +18,9 @@ if repo_path not in sys.path:
 import numpy as np
 import tensorflow as tf
 
-import conll
-# import coref_ops
-import metrics
-# import optimization
 import util
 from bert import modeling
 from bert import tokenization
-# from pytorch_to_tf import load_from_pytorch_checkpoint
-from tensorflow.python.ops.gen_array_ops import *
 
 
 
@@ -61,39 +55,7 @@ class MentionProposalModel(object):
         self.enqueue_op = queue.enqueue(self.queue_input_tensors)
         self.input_tensors = queue.dequeue()  # self.queue_input_tensors 不一样？
         self.bce_loss = tf.keras.losses.BinaryCrossentropy()
-        self.mention_proposal_only = self.config.mention_proposal_only
-        ######## if self.mention_proposal_only:
-        ########     self.loss, self.pred_mention_labels, self.gold_mention_labels = self.get_mention_proposal_and_loss(*self.input_tensors)
-        ######## else:
-        ########     self.predictions, self.loss = self.get_predictions_and_loss(*self.input_tensors)
-        # bert stuff
-        # ######## comment by xiaoy li at 2020.07.30 
-        ########tvars = tf.trainable_variables()
-        # If you're using TF weights only, tf_checkpoint and init_checkpoint can be the same
-        # Get the assignment map from the tensorflow checkpoint.
-        # Depending on the extension, use TF/Pytorch to load weights.
-        ########assignment_map, initialized_variable_names = modeling.get_assignment_map_from_checkpoint(tvars, config[
-        ########    'tf_checkpoint'])
-        ########init_from_checkpoint = tf.train.init_from_checkpoint if config['init_checkpoint'].endswith('ckpt') else load_from_pytorch_checkpoint
-        ########init_from_checkpoint(config['init_checkpoint'], assignment_map)
-        ########print("**** Trainable Variables ****")
-        ########for var in tvars:
-        ########    init_string = ""
-        ########    if var.name in initialized_variable_names:
-        ########        init_string = ", *INIT_FROM_CKPT*"
-        ########    # tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape,
-        ########    # init_string)
-        ########    print("  name = %s, shape = %s%s" % (var.name, var.shape, init_string))
 
-        ######## num_train_steps = int(self.config['num_docs'] * self.config['num_epochs'])  # 文章数 * 训练轮数
-        ######## num_warmup_steps = int(num_train_steps * 0.1)  # 前1/10做warm_up
-        ######## self.global_step = tf.train.get_or_create_global_step()  # 根据不同的model得到不同的optimizer
-        ######## self.train_op = optimization.create_custom_optimizer(tvars, self.loss, self.config['bert_learning_rate'],
-        ########                                                      self.config['task_learning_rate'],
-        ########                                                      num_train_steps, num_warmup_steps, False, self.global_step,
-        ########                                                      freeze=-1, task_opt=self.config['task_optimizer'],
-        ########                                                      eps=config['adam_eps'])
-        self.coref_evaluator = metrics.CorefEvaluator()
 
     def start_enqueue_thread(self, session):
         with open(self.config["train_path"]) as f:
@@ -336,15 +298,10 @@ class MentionProposalModel(object):
         mention_doc = self.flatten_emb_by_sentence(mention_doc, input_mask)  # (b, s, e) -> (b*s, e) 取出有效token的emb
         num_words = util.shape(mention_doc, 0)  # b*s
 
-        # mention_doc_start = tf.unsqueeze()
-        # mention_doc_end = 
-        # mention_doc_span = tf.concat()
         with tf.variable_scope("start_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
             start_scores = util.ffnn(mention_doc, self.config["ffnn_depth"], self.config["ffnn_size"], 1, self.dropout)
-            # start_scores = tf.sigmoid(start_scores)
         with tf.variable_scope("end_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
             end_scores = util.ffnn(mention_doc, self.config["ffnn_depth"], self.config["ffnn_size"], 1, self.dropout)
-            # end_scores = tf.sigmoid(end_scores)
 
         gold_start_label = tf.reshape(gold_starts, [-1, 1])
         start_value = tf.reshape(tf.ones_like(gold_starts), [-1])
@@ -363,34 +320,6 @@ class MentionProposalModel(object):
         loss +=  tf.math.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(end_scores, [-1]),tf.float32), labels=tf.reshape(gold_end_label, [-1])) )
 
         return loss, start_scores, end_scores
-
-        # candidate_span: 每个位置都可能是起点，对每个起点有max_span_width种不同的终点，总共有(num_words, max_span_width)种可能
-        #######candidate_starts = tf.tile(tf.expand_dims(tf.range(num_words), 1), [1, self.max_span_width])
-        #######candidate_ends = candidate_starts + tf.expand_dims(tf.range(self.max_span_width), 0)
-
-        # [num_words, max_span_width]，根据index将对应位置的sentence_id取出来
-        #######candidate_start_sentence_indices = tf.gather(sentence_map, candidate_starts)
-        #######candidate_end_sentence_indices = tf.gather(sentence_map, tf.minimum(candidate_ends, num_words - 1))
-        # [num_words, max_span_width]，合法的span需要满足start/end不能越界；start/end必须在同一个句子里
-        #######candidate_mask = tf.logical_and(candidate_ends < num_words,
-        #######                                tf.equal(candidate_start_sentence_indices, candidate_end_sentence_indices))
-        #######flattened_candidate_mask = tf.reshape(candidate_mask, [-1])  # [num_words * max_span_width]
-        # [num_candidates] 把候选span mask掉再铺平
-        #######candidate_starts = tf.boolean_mask(tf.reshape(candidate_starts, [-1]), flattened_candidate_mask)
-        #######candidate_ends = tf.boolean_mask(tf.reshape(candidate_ends, [-1]),
-        #######                                 flattened_candidate_mask)  # [num_candidates]
-
-        #######candidate_cluster_ids = self.get_candidate_labels(candidate_starts, candidate_ends, gold_starts, gold_ends,
-        #######                                                 cluster_ids)  # [num_candidates] 每个候选span的cluster_id
-        #######candidate_binary_labels = candidate_cluster_ids > 0
-        # [num_candidates, emb] 候选答案的向量表示  [num_candidates,] 候选答案的得分
-        #######candidate_span_emb = self.get_span_emb(mention_doc, candidate_starts, candidate_ends)
-        #######candidate_mention_scores = self.get_mention_scores(candidate_span_emb, candidate_starts, candidate_ends)
-        #######pred_probs = tf.sigmoid(candidate_mention_scores)
-        #######pred_labels = pred_probs > 0.5
-        #######mention_proposal_loss = self.bce_loss(y_pred=pred_probs,
-        #######                                      y_true=tf.cast(candidate_binary_labels, tf.float64))
-        #######return mention_proposal_loss, pred_labels, candidate_binary_labels
 
     def get_predictions_and_loss(self, input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts,
                                  gold_ends, cluster_ids, sentence_map):
@@ -430,13 +359,6 @@ class MentionProposalModel(object):
         # beam size 所有span的数量小于num_words * top_span_ratio
         k = tf.minimum(3900, tf.to_int32(tf.floor(tf.to_float(num_words) * self.config["top_span_ratio"])))
         c = tf.minimum(self.config["max_top_antecedents"], k)  # 初筛挑出0.4*500=200个候选，细筛再挑出50个候选
-        # pull from beam，光使用mention_score卡前0.4*num_words个span  todo(yuxian): check this function
-        # top_span_indices = coref_ops.extract_spans(tf.expand_dims(candidate_mention_scores, 0),
-        #                                            tf.expand_dims(candidate_starts, 0),
-        #                                            tf.expand_dims(candidate_ends, 0),
-        #                                            tf.expand_dims(k, 0),
-        #                                            num_words,
-        #                                            True)  # [1, k]
         _, top_span_indices = tf.nn.top_k(candidate_mention_scores, k)
         top_span_indices = tf.reshape(top_span_indices, [-1])  # k个按mention_score初筛出来的candidate的index
 
@@ -446,21 +368,6 @@ class MentionProposalModel(object):
         top_span_cluster_ids = tf.gather(candidate_cluster_ids, top_span_indices)  # [k]
         top_span_emb = tf.gather(candidate_span_emb, top_span_indices)  # [k, emb]
 
-        # def body(idx, tensors):
-        #     fake_input = tf.stack([top_span_starts, top_span_ends])
-        #     fake_model = modeling.BertModel(
-        #         config=self.bert_config,
-        #         is_training=is_training,
-        #         input_ids=fake_input,
-        #         use_one_hot_embeddings=False,
-        #         scope='bert')
-        #     fake_output = fake_model.get_sequence_output()
-        #     return idx + 1, tf.Print(tensors, [tf.shape(fake_output)], 'fake_output')
-        #
-        # # do the loop:
-        # initial_outs = model.get_sequence_output()
-        # _, final_outs = tf.while_loop(lambda z, t: z < 100, body, loop_vars=(0, initial_outs))
-        # top_span_emb = tf.Print(top_span_emb, [tf.shape(tf.stack(final_outs))], "final_outs")
         top_span_mention_scores = tf.gather(candidate_mention_scores, top_span_indices)  # [k]
         top_antecedents, top_antecedents_mask, top_fast_antecedent_scores, top_antecedent_offsets = self.coarse_pruning(
             top_span_emb, top_span_mention_scores, c)
@@ -763,18 +670,6 @@ class MentionProposalModel(object):
 
         return predicted_clusters, mention_to_predicted
 
-    def evaluate_coref(self, top_span_starts, top_span_ends, predicted_antecedents, gold_clusters):
-        gold_clusters = [tuple(tuple(m) for m in gc) for gc in gold_clusters]
-        mention_to_gold = {}
-        for gc in gold_clusters:
-            for mention in gc:
-                mention_to_gold[mention] = gc
-
-        predicted_clusters, mention_to_predicted = self.get_predicted_clusters(top_span_starts, top_span_ends,
-                                                                               predicted_antecedents)
-        self.coref_evaluator.update(predicted_clusters, gold_clusters, mention_to_predicted, mention_to_gold)
-        return predicted_clusters
-
     def load_eval_data(self):  # lazy加载，真正需要evaluate的时候加载，加载一次常驻内存
         if self.eval_data is None:
             def load_line(line):
@@ -809,49 +704,6 @@ class MentionProposalModel(object):
         p = tp / (tp+fp+epsilon)
         r = tp / (tp+fn+epsilon)
         f = 2*p*r/(p+r+epsilon)
-        summary_dict["Average F1 (py)"] = f
-        print("Average F1 (py): {:.2f}% on {} docs".format(f * 100, len(self.eval_data)))
-        summary_dict["Average precision (py)"] = p
-        print("Average precision (py): {:.2f}%".format(p * 100))
-        summary_dict["Average recall (py)"] = r
-        print("Average recall (py): {:.2f}%".format(r * 100))
-
-        return util.make_summary(summary_dict), f
-
-
-    def evaluate(self, session, official_stdout=False, eval_mode=False):
-        self.load_eval_data()
-        coref_predictions = {}
-
-        for example_num, (tensorized_example, example) in enumerate(self.eval_data):
-            _, _, _, _, _, _, gold_starts, gold_ends, _, _ = tensorized_example
-            feed_dict = {i: t for i, t in zip(self.input_tensors, tensorized_example)}
-            candidate_starts, candidate_ends, candidate_mention_scores, top_span_starts, top_span_ends, \
-                top_antecedents, top_antecedent_scores = session.run(self.predictions, feed_dict=feed_dict)
-            """
-            candidate_starts: (num_words, max_span_width) 所有候选span的start
-            candidate_ends: (num_words, max_span_width) 所有候选span的end
-            candidate_mention_scores: (num_candidates,) 候选答案的得分
-            top_span_starts: (k, ) 筛选过mention之后的候选的start_index
-            top_span_ends: (k, ) 筛选过mention之后的候选的end_index
-            top_antecedents: (k, c) 粗筛过antecedent之后的每个候选antecedent的index
-            top_antecedent_scores: (k, c) 粗筛过antecedent之后的每个候选antecedent的score
-            """
-            predicted_antecedents = self.get_predicted_antecedents(top_antecedents, top_antecedent_scores)
-            coref_predictions[example["doc_key"]] = self.evaluate_coref(top_span_starts, top_span_ends,
-                                                                        predicted_antecedents, example["clusters"])
-            if (example_num + 1) % 100 == 0:
-                print("Evaluated {}/{} examples.".format(example_num + 1, len(self.eval_data)))
-
-        summary_dict = {}
-        if eval_mode:  # 在测试集评测的时候，需要用官方的脚本再评测一遍
-            conll_results = conll.evaluate_conll(self.config["conll_eval_path"], coref_predictions,
-                                                 self.subtoken_maps, official_stdout)
-            average_f1 = sum(results["f"] for results in conll_results.values()) / len(conll_results)
-            summary_dict["Average F1 (conll)"] = average_f1
-            print("Average F1 (conll): {:.2f}%".format(average_f1))
-
-        p, r, f = self.coref_evaluator.get_prf()
         summary_dict["Average F1 (py)"] = f
         print("Average F1 (py): {:.2f}% on {} docs".format(f * 100, len(self.eval_data)))
         summary_dict["Average precision (py)"] = p

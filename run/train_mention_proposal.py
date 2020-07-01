@@ -22,7 +22,6 @@ logger.setLevel(logging.INFO)
 tf.app.flags.DEFINE_string('f', '', 'kernel')
 
 flags = tf.app.flags
-#FLAGS = flags.FLAGS
 flags.DEFINE_string("output_dir", "data", "The output directory of the model training.")
 flags.DEFINE_bool("do_train", True, "Whether to run training.")
 flags.DEFINE_bool("use_tpu", False, "Whether to use TPU or GPU/CPU.")
@@ -81,16 +80,13 @@ def model_fn_builder(config):
 
         model = util.get_model(config, model_sign="mention_proposal")
 
-        ########################################################################
         tvars = tf.trainable_variables()
         # If you're using TF weights only, tf_checkpoint and init_checkpoint can be the same
         # Get the assignment map from the tensorflow checkpoint.
         # Depending on the extension, use TF/Pytorch to load weights.
         assignment_map, initialized_variable_names = get_assignment_map_from_checkpoint(tvars, config['tf_checkpoint'])
         init_from_checkpoint = tf.train.init_from_checkpoint # if config['init_checkpoint'].endswith('ckpt') # else load_from_pytorch_checkpoint
-        
-        ########################################################################
-  
+          
         if FLAGS.use_tpu:
             def tpu_scaffold():
                 init_from_checkpoint(config['init_checkpoint'], assignment_map)
@@ -196,7 +192,6 @@ def main(_):
 
 
 if __name__ == '__main__':
-    # main()
     tf.app.run()
 
 
