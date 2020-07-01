@@ -117,11 +117,15 @@ def pad_span_mention(text_len_lst, config, before_pad_start, before_pad_end):
         end_seg = int(tmp_s // config["max_segment_len"])
         if start_seg != end_seg:
             continue 
-        sent_idx = int(tmp_s // config["max_segment_len"]) + 1 if tmp_s % config["max_segment_len"] != 0 else int(tmp_s // config["max_segment_len"])
-        start_offset = tmp_s % config["max_segment_len"] 
-        end_offset = tmp_e % config["max_segment_len"]
+        try:
+            sent_idx = int(tmp_s // config["max_segment_len"]) + 1 if tmp_s % config["max_segment_len"] != 0 else int(tmp_s // config["max_segment_len"])
+            start_offset = tmp_s % config["max_segment_len"] 
+            end_offset = tmp_e % config["max_segment_len"]
+            span_mention[sent_idx, start_offset, end_offset] = 1 
+        except:
+            continue 
 
-        span_mention[sent_idx, start_offset, end_offset] = 1 
+        
 
     flatten_span_mention = np.reshape(span_mention, (1, -1))
     flatten_span_mention = flatten_span_mention.tolist()
@@ -260,42 +264,44 @@ if __name__ == '__main__':
     # python3 build_data_to_tfrecord.py 
     #### only data_sign 
     data_sign = "test"
-    # for sliding_window_size in [128, 256]:
-    #     print("=*="*20)
-    #    print("current sliding window size is : {}".format(str(sliding_window_size)))
-    #     print("=*="*20)
-    #     for data_sign in ["train", "dev", "test"]:
-    #         print("%*%"*20)
-    #        print(data_sign)
-    #         print("%*%"*20)
-    #         config = util.initialize_from_env(use_tpu=False)
-    #         language = "english"
-    #         vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
-    #         input_data_dir = "/xiaoya/data" 
+    for sliding_window_size in [128]:
+        print("=*="*20)
+        print("current sliding window size is : {}".format(str(sliding_window_size)))
+        print("=*="*20)
+        for data_sign in ["train", "dev", "test"]:
+            print("%*%"*20)
+            print(data_sign)
+            print("%*%"*20)
+            config = util.initialize_from_env(use_tpu=False)
+            language = "english"
+            vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
+            input_data_dir = "/xiaoya/data" 
 
-    #         input_filename = "{}.english.{}.jsonlines".format(data_sign, str(sliding_window_size))
+            input_filename = "{}.english.{}.jsonlines".format(data_sign, str(sliding_window_size))
     
-    #         # prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
-    #         output_data_dir = "/xiaoya/tpu_data/mention_proposal/all_{}_{}".format(str(sliding_window_size), str(config["max_training_sentences"]))
-    #         os.makedirs(output_data_dir, exist_ok=True)
-    #         output_filename = "{}.english.jsonlines".format(data_sign)
-    #         prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, sliding_window_size)
+            output_data_dir = "/xiaoya/tpu_data/mention_proposal/span_all_{}_{}".format(str(sliding_window_size), str(config["max_training_sentences"]))
+            os.makedirs(output_data_dir, exist_ok=True)
+            output_filename = "{}.english.jsonlines".format(data_sign)
+            print("$^$"*30)
+            print(output_data_dir, output_filename)
+            print("$^$"*30)
+            prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, sliding_window_size)
 
 
 
     # prepare demo dataset 
-    config = util.initialize_from_env(use_tpu=False)
-    vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
-    input_data_dir = "/xiaoya/data" 
-    language = "english"
-    input_filename = "{}.english.128.jsonlines".format(data_sign)
-    sliding_window_size = 128
-    output_data_dir = "/xiaoya/tpu_data/mention_proposal/test_span"
+    # config = util.initialize_from_env(use_tpu=False)
+    # vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
+    # input_data_dir = "/xiaoya/data" 
+    # language = "english"
+    # input_filename = "{}.english.128.jsonlines".format(data_sign)
+    # sliding_window_size = 128
+    # output_data_dir = "/xiaoya/tpu_data/mention_proposal/test_span"
     # output_data_dir = "/xiaoya/tpu_data/mention_proposal/demo_128_{}".format(str(config["max_training_sentences"]))
-    os.makedirs(output_data_dir, exist_ok=True)
-    output_filename = "{}.english.jsonlines".format(data_sign)
+    # os.makedirs(output_data_dir, exist_ok=True)
+    # output_filename = "{}.english.jsonlines".format(data_sign)
 
-    prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, \
-        sliding_window_size, demo=True)
+    # prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, \
+    #     sliding_window_size, demo=True)
 
 
