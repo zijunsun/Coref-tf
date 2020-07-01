@@ -316,8 +316,8 @@ class MentionProposalModel(object):
         # gold_end_label = tf.boolean_mask(gold_end_label, tf.reshape(input_mask, [-1]))
             
 
-        loss  = tf.math.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(start_scores, [-1]),tf.float32), labels=tf.reshape(gold_start_label, [-1])))
-        loss +=  tf.math.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(end_scores, [-1]),tf.float32), labels=tf.reshape(gold_end_label, [-1])) )
+        loss  = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(start_scores, [-1]),tf.float32), labels=tf.reshape(gold_start_label, [-1])))
+        loss +=  tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(end_scores, [-1]),tf.float32), labels=tf.reshape(gold_end_label, [-1])) )
 
         return loss, start_scores, end_scores
 
