@@ -15,14 +15,14 @@ subtoken_maps = {}
 gold = {}
 
 
-
-def prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size):
+def prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, \
+    vocab_file, sliding_window_size, demo=False):
 
     tokenizer = FullTokenizer(vocab_file=vocab_file, do_lower_case=False)
     # for dataset in ['train', 'dev', 'test']:
-    writer = tf.python_io.TFRecordWriter(os.path.join(data_dir, "{}.{}.tfrecord".format(filename, language)))
+    writer = tf.python_io.TFRecordWriter(os.path.join(output_data_dir, "{}.{}.tfrecord".format(output_filename, language)))
 
-    data_file_path = os.path.join(data_dir, filename)
+    data_file_path = os.path.join(input_data_dir, input_filename)
     with open(data_file_path, "r") as f:
         documents = [json.loads(jsonline) for jsonline in f.readlines()]
     doc_map = {}
@@ -32,7 +32,9 @@ def prepare_training_data(data_dir, language, filename, config, vocab_file, slid
         if type(tensorized) is not tuple:
             tensorized = tuple(tensorized) 
         write_instance_to_example_file(writer, tensorized, doc_key, config)
-    with open(os.path.join(data_dir, "{}.{}.map".format(filename, language)), 'w') as fo:
+        if demo and doc_idx > 5:
+            break 
+    with open(os.path.join(output_data_dir, "{}.{}.map".format(output_filename, language)), 'w') as fo:
         json.dump(doc_map, fo, indent=2)
 
 
@@ -230,21 +232,37 @@ def get_speaker_dict(speakers, config):
     return speaker_dict
 
 
-
 if __name__ == '__main__':
-    # python3 build_data_to_tfrecord.py train_spanbert_base
-    config = util.initialize_from_env(use_tpu=False)
-    data_dir = "/xiaoya/test_data_gen"
-    language = "english"
-    vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
-    # filename = "dev.english.128.jsonlines"
-    # filename = "dev.english.128.jsonlines"
-    filename = "test.english.128.jsonlines"
+    # python3 build_data_to_tfrecord.py 
+    #### only data_sign 
+    # data_sign = "train"
+
+    for data_sign in ["train", "dev", "test"]:
+        config = util.initialize_from_env(use_tpu=False)
+        language = "english"
+        vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
+        input_data_dir = "/xiaoya/data" 
+
+        input_filename = "{}.english.128.jsonlines".format(data_sign)
+        sliding_window_size = 128
+    
+        # prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
+        output_data_dir = "/xiaoya/tpu_data/mention_proposal/all_{}_{}".format(str(sliding_window_size), str(config["max_training_sentences"]))
+        os.makedirs(output_data_dir, exist_ok=True)
+        output_filename = "{}.english.jsonlines".format(data_sign)
+        prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, sliding_window_size)
+
+
+
+    # prepare demo dataset 
+    input_data_dir = "/xiaoya/data" 
+    input_filename = "{}.english.128.jsonlines".format(data_sign)
     sliding_window_size = 128
-    # prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
-    prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
+    output_data_dir = "/xiaoya/tpu_data/mention_proposal/demo_128_{}".format(str(config["max_training_sentences"]))
+    os.makedirs(output_data_dir, exist_ok=True)
+    output_filename = "{}.english.jsonlines".format(data_sign)
 
-
-
+    # prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, \
+    #     sliding_window_size, demo=True)
 
 
