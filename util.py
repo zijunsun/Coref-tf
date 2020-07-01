@@ -34,12 +34,14 @@ def initialize_from_env(eval_test=False, config_name="train_spanbert_base", use_
     print("Running experiment: {}".format(name))
 
     if not use_tpu:
+        print("loading experiments.conf ... ")
         config = pyhocon.ConfigFactory.parse_file(os.path.join(repo_path, "experiments.conf")) 
     else: 
+        print("loading experiments_tpu.conf ... ")
         config = pyhocon.ConfigFactory.parse_file(os.path.join(repo_path, "experiments_tpu.conf"))
 
     print("=*="*10)
-    print("chceck config name :")
+    print("check config name :")
     print(config.keys())
     config = config[name]
     config["log_dir"] = mkdirs(os.path.join(config["log_root"], name))
