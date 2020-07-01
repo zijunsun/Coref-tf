@@ -97,18 +97,6 @@ def clip_or_pad(var, max_var_len, pad_idx=-1):
         var = list(var) + list(pad_var) 
         return var 
 
-
-# def pad_span_mention(text_len, before_pad_start, before_pad_end):
-#     span_mention = np.zeros((text_len, text_len), dtype=int).tolist()
-
-#     for tmp_s, tmp_e in zip(before_pad_start, before_pad_end):
-#         span_mention[tmp_s][tmp_e] = 1
-
-#     flatten_span_mention = [i for j in span_mention for i in j]
-    
-#     return flatten_span_mention 
-
-
 def pad_span_mention(text_len_lst, config, before_pad_start, before_pad_end):
     span_mention = np.zeros((config["max_training_sentences"], config["max_segment_len"], config["max_segment_len"]), dtype=int)
 
