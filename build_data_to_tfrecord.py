@@ -15,6 +15,7 @@ from bert.tokenization import FullTokenizer
 subtoken_maps = {}
 gold = {}
 
+
 def prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, \
     vocab_file, sliding_window_size, demo=False):
 
@@ -70,17 +71,17 @@ def write_instance_to_example_file(writer, instance, doc_key, config):
     span_mention  = pad_span_mention(before_text_len, config, before_pad_start, before_pad_end)
 
     features = {
-        'sentence_map': create_int_feature(sentence_map), # 
-        'text_len': create_int_feature(text_len), # 
-        'subtoken_map': create_int_feature(tmp_subtoken_maps),  # 
-        'speaker_ids': create_int_feature(tmp_speaker_ids), # 
+        'sentence_map': create_int_feature(sentence_map), 
+        'text_len': create_int_feature(text_len), 
+        'subtoken_map': create_int_feature(tmp_subtoken_maps), 
+        'speaker_ids': create_int_feature(tmp_speaker_ids), 
         'flattened_input_ids': create_int_feature(flattened_input_ids),
         'flattened_input_mask': create_int_feature(flattened_input_mask),
         'genre': create_int_feature([genre]),
-        'span_starts': create_int_feature(gold_starts), # 
-        'span_ends': create_int_feature(gold_ends), # 
+        'span_starts': create_int_feature(gold_starts), 
+        'span_ends': create_int_feature(gold_ends), 
         'cluster_ids': create_int_feature(cluster_ids),
-        'span_mention': create_int_feature(span_mention) # 
+        'span_mention': create_int_feature(span_mention) 
     }
     tf_example = tf.train.Example(features=tf.train.Features(feature=features))
     writer.write(tf_example.SerializeToString())
