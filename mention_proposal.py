@@ -113,8 +113,8 @@ class MentionProposalModel(object):
         # loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(tf.sigmoid(start_scores), [-1]),tf.float32), labels=tf.reshape(gold_start_label, [-1])))
         # loss +=  tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(tf.sigmoid(end_scores), [-1]),tf.float32), labels=tf.reshape(gold_end_label, [-1])) )
 
-        loss = self.bce_loss(y_pred=start_scores > 0.5, y_true=tf.cast(tf.reshape(gold_start_label, [-1]), tf.float32))
-        loss += self.bce_loss(y_pred=end_scores > 0.5, y_true=tf.cast(tf.reshape(gold_end_label, [-1]), tf.float32))
+        loss = self.bce_loss(y_pred=start_scores, y_true=tf.cast(tf.reshape(gold_start_label, [-1]), tf.float32))
+        loss += self.bce_loss(y_pred=end_scores, y_true=tf.cast(tf.reshape(gold_end_label, [-1]), tf.float32))
 
         return loss, start_scores, end_scores
 
