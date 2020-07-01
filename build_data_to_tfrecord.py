@@ -19,7 +19,6 @@ def prepare_training_data(input_data_dir, output_data_dir, input_filename, outpu
     vocab_file, sliding_window_size, demo=False):
 
     tokenizer = FullTokenizer(vocab_file=vocab_file, do_lower_case=False)
-    # for dataset in ['train', 'dev', 'test']:
     writer = tf.python_io.TFRecordWriter(os.path.join(output_data_dir, "{}.{}.tfrecord".format(output_filename, language)))
 
     data_file_path = os.path.join(input_data_dir, input_filename)
@@ -68,7 +67,6 @@ def write_instance_to_example_file(writer, instance, doc_key, config):
     gold_ends = clip_or_pad(gold_ends, config["max_cluster_num"], pad_idx=-1)
     cluster_ids = clip_or_pad(cluster_ids, config["max_cluster_num"], pad_idx=-1)
 
-    # span_mention = pad_span_mention(len(flattened_input_ids), before_pad_start, before_pad_end)
     span_mention  = pad_span_mention(before_text_len, config, before_pad_start, before_pad_end)
 
     features = {
@@ -113,16 +111,12 @@ def pad_span_mention(text_len_lst, config, before_pad_start, before_pad_end):
         except:
             continue 
 
-        
-
     flatten_span_mention = np.reshape(span_mention, (1, -1))
     flatten_span_mention = flatten_span_mention.tolist()
     flatten_span_mention = [j for j in flatten_span_mention]
 
     return flatten_span_mention[0]
-
-
-    
+  
 
 def create_int_feature(values):
     feature = tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
@@ -189,19 +183,6 @@ def tensorize_example(example, config, tokenizer, is_training):
         # xiaoya : to do tensor_list[0], tensor_list[i] 
         input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends, cluster_ids, sentence_map = tensor_list[0]
 
-        #####################################################
-        # please check the tensor list : 
-        # 1
-        # input_ids Tensor("Shape:0", shape=(2,), dtype=int32)
-        # input_mask Tensor("Shape_1:0", shape=(2,), dtype=int32)
-        # text_len Tensor("Shape_2:0", shape=(1,), dtype=int32)
-        # speaker_ids Tensor("Shape_3:0", shape=(2,), dtype=int32)
-        # genre Tensor("Shape_4:0", shape=(0,), dtype=int32)
-        # sentence_map Tensor("Shape_5:0", shape=(1,), dtype=int32)
-        # cluster_ids Tensor("Shape_6:0", shape=(1,), dtype=int32)
-        # gold_starts Tensor("Shape_7:0", shape=(1,), dtype=int32)
-        # gold_ends Tensor("Shape_8:0", shape=(1,), dtype=int32)
-        # ###################################################
         return tensor_list[0]
     else:
         return example_tensors
