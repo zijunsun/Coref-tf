@@ -36,6 +36,7 @@ class MentionProposalModel(object):
         self.bert_config = modeling.BertConfig.from_json_file(config["bert_config_file"])
         self.bert_config.hidden_dropout_prob = self.config["dropout_rate"]
         self.tokenizer = tokenization.FullTokenizer(vocab_file=config['vocab_file'], do_lower_case=False)
+        self.bce_loss = tf.keras.losses.BinaryCrossentropy()
 
     def restore(self, session):
         """在evaluate和predict阶段加载整个模型"""
@@ -106,9 +107,16 @@ class MentionProposalModel(object):
         end_shape = tf.constant([self.config["max_training_sentences"] * self.config["max_segment_len"]])
         gold_end_label = tf.cast(tf.scatter_nd(gold_end_label, end_value, end_shape), tf.float32)
         # gold_end_label = tf.boolean_mask(gold_end_label, tf.reshape(input_mask, [-1]))
+        start_scores = tf.cast(tf.reshape(tf.sigmoid(start_scores), [-1]),tf.float32)
+        end_scores = tf.cast(tf.reshape(tf.sigmoid(end_scores), [-1]),tf.float32)
             
-        loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(tf.sigmoid(start_scores), [-1]),tf.float32), labels=tf.reshape(gold_start_label, [-1])))
-        loss +=  tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(tf.sigmoid(end_scores), [-1]),tf.float32), labels=tf.reshape(gold_end_label, [-1])) )
+        # loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(tf.sigmoid(start_scores), [-1]),tf.float32), labels=tf.reshape(gold_start_label, [-1])))
+        # loss +=  tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=tf.cast(tf.reshape(tf.sigmoid(end_scores), [-1]),tf.float32), labels=tf.reshape(gold_end_label, [-1])) )
+
+        mention_proposal_loss = self.bce_loss(y_pred=start_scores,
+                                            y_true=tf.cast(tf.reshape(gold_start_label, [-1]), tf.float32))
+        mention_proposal_loss += self.bce_loss(y_pred=end_scores,
+                                            y_true=tf.cast(tf.reshape(gold_end_label, [-1]), tf.float32))
 
         return loss, start_scores, end_scores
 
