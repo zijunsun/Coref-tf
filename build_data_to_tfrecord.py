@@ -1,8 +1,5 @@
 #!/usr/bin/env python3 
 # -*- coding: utf-8 -*- 
-
-
-
 import json
 import os
 import random 
@@ -50,6 +47,8 @@ Args:
     cluster_ids: 
         e.g.: cluster ids for the (span_start, span_end) pairs
         [1, 1, 2, 2, 2, 3, 3] 
+    span_mention:
+        mention of [0, 1] 
     check the mention in the subword list: 
         1. ['its']
         1. ['the', 'Chinese', 'securities', 'regulatory', 'department']
