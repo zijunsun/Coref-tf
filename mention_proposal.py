@@ -167,15 +167,27 @@ class MentionProposalModel(object):
         end_shape = tf.constant([self.config["max_training_sentences"] * self.config["max_segment_len"]])
         gold_end_label = tf.cast(tf.scatter_nd(gold_end_label, end_value, end_shape), tf.float32)
         # gold_end_label = tf.boolean_mask(gold_end_label, tf.reshape(input_mask, [-1]))
-        start_scores = tf.cast(tf.reshape(start_scores, [-1]),tf.float32)
-        end_scores = tf.cast(tf.reshape(end_scores, [-1]),tf.float32)
-        span_scores = tf.cast(tf.reshape(span_scores, [-1]), tf.float32)
+        start_scores = tf.cast(tf.reshape(tf.sigmoid(start_scores), [-1]),tf.float32)
+        end_scores = tf.cast(tf.reshape(tf.sigmoid(end_scores), [-1]),tf.float32)
+        span_scores = tf.cast(tf.reshape(tf.sigmoid(span_scores), [-1]), tf.float32)
         span_mention = tf.cast(span_mention, tf.float32)
 
-        start_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=start_scores, labels=tf.reshape(gold_start_label, [-1]))) 
-        end_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=end_scores, labels=tf.reshape(gold_end_label, [-1])))
-        span_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=span_scores, labels=tf.reshape(span_mention, [-1])))
-                
+        start_scores = tf.stack([(1 - start_scores), start_scores], axis=-1) 
+        end_scores = tf.stack([(1 - end_scores), end_scores], axis=-1) 
+        span_scores = tf.stack([(1 - span_scores), span_scores], axis=-1)
+
+        gold_start_label = tf.one_hot(tf.reshape(gold_start_label, [-1]), 2, axis=-1)
+        gold_end_label = tf.one_hot(tf.reshape(gold_start_label, [-1]), 2, axis=-1)
+        span_mention = tf.one_hot(tf.reshape(span_mention, [-1]), 2, axis=-1)
+
+        # start_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=start_scores, labels=gold_start_label)) 
+        # end_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=end_scores, labels=gold_end_label))
+        # span_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=span_scores, labels=span_mention))
+
+        start_loss = self.bce_loss(y_pred=start_scores, y_true=gold_start_label)
+        end_loss = self.bce_loss(y_pred=end_scores, y_true=gold_end_label)
+        span_loss = self.bce_loss(y_pred=span_scores, y_true=span_mention)
+
         if span_mention is None :
             loss = (start_loss + end_loss )/2  
             return loss, start_scores, end_scores
