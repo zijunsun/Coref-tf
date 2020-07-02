@@ -177,7 +177,7 @@ class MentionProposalModel(object):
         span_scores = tf.stack([(1 - span_scores), span_scores], axis=-1)
 
         gold_start_label = tf.cast(tf.one_hot(tf.reshape(gold_start_label, [-1]), 2, axis=-1), tf.float32)
-        gold_end_label = tf.cast(tf.one_hot(tf.reshape(gold_start_label, [-1]), 2, axis=-1), tf.float32)
+        gold_end_label = tf.cast(tf.one_hot(tf.reshape(gold_end_label, [-1]), 2, axis=-1), tf.float32)
         span_mention = tf.cast(tf.one_hot(tf.reshape(span_mention, [-1]), 2, axis=-1),tf.float32)
 
         # start_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=start_scores, labels=gold_start_label)) 
