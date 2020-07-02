@@ -185,9 +185,14 @@ class MentionProposalModel(object):
         span_mention = tf.cast(tf.one_hot(tf.reshape(span_mention, [-1]), 2, axis=-1),tf.float32)
 
         start_end_loss_mask = tf.reshape(start_end_loss_mask, [-1])
-        start_loss = self.bce_loss(y_pred=start_scores, y_true=gold_start_label)
-        end_loss = self.bce_loss(y_pred=end_scores, y_true=gold_end_label)
-        span_loss = self.bce_loss(y_pred=span_scores, y_true=span_mention)
+        # start_loss = self.bce_loss(y_pred=start_scores, y_true=gold_start_label)
+        # end_loss = self.bce_loss(y_pred=end_scores, y_true=gold_end_label)
+        # span_loss = self.bce_loss(y_pred=span_scores, y_true=span_mention)
+
+        # true, pred 
+        start_loss = tf.keras.losses.binary_crossentropy(gold_start_label, start_scores,)
+        end_loss = tf.keras.losses.binary_crossentropy(gold_end_label, end_scores)
+        span_loss = tf.keras.losses.binary_crossentropy(span_mention, span_scores,)
 
         start_loss = tf.reduce_mean(tf.multiply(start_loss, tf.cast(start_end_loss_mask, tf.float32))) 
         end_loss = tf.reduce_mean(tf.multiply(end_loss, tf.cast(start_end_loss_mask, tf.float32))) 
