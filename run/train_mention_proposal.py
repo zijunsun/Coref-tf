@@ -22,7 +22,6 @@ logger.setLevel(logging.INFO)
 tf.app.flags.DEFINE_string('f', '', 'kernel')
 
 flags = tf.app.flags
-#FLAGS = flags.FLAGS
 flags.DEFINE_string("output_dir", "data", "The output directory of the model training.")
 flags.DEFINE_bool("do_train", True, "Whether to run training.")
 flags.DEFINE_bool("use_tpu", False, "Whether to use TPU or GPU/CPU.")
@@ -73,7 +72,7 @@ def model_fn_builder(config):
         tmp_features["span_mention"] = span_mention 
 
 
-        tf.logging.info("*** Features ***")
+        tf.logging.info("********* Features *********")
         for name in sorted(tmp_features.keys()):
             tf.logging.info("  name = %s, shape = %s" % (name, tmp_features[name].shape))
 
@@ -81,16 +80,13 @@ def model_fn_builder(config):
 
         model = util.get_model(config, model_sign="mention_proposal")
 
-        ########################################################################
         tvars = tf.trainable_variables()
         # If you're using TF weights only, tf_checkpoint and init_checkpoint can be the same
         # Get the assignment map from the tensorflow checkpoint.
         # Depending on the extension, use TF/Pytorch to load weights.
         assignment_map, initialized_variable_names = get_assignment_map_from_checkpoint(tvars, config['tf_checkpoint'])
         init_from_checkpoint = tf.train.init_from_checkpoint # if config['init_checkpoint'].endswith('ckpt') # else load_from_pytorch_checkpoint
-        
-        ########################################################################
-  
+          
         if FLAGS.use_tpu:
             def tpu_scaffold():
                 init_from_checkpoint(config['init_checkpoint'], assignment_map)
@@ -116,15 +112,14 @@ def model_fn_builder(config):
 
         if config["device"] == "tpu":
             tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
-            # optimizer = RAdam(learning_rate=config['bert_learning_rate'], epsilon=1e-8, beta1=0.9, beta2=0.999)
-            # optimizer = tf.train.GradientDescentOptimizer(learning_rate=config['bert_learning_rate'])
             optimizer = tf.train.AdamOptimizer(learning_rate=config['bert_learning_rate'], beta1=0.9, beta2=0.999, epsilon=1e-08)
             optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
             train_op = optimizer.minimize(total_loss, tf.train.get_global_step()) 
         else:
             optimizer = RAdam(learning_rate=config['bert_learning_rate'], epsilon=1e-8, beta1=0.9, beta2=0.999)
             train_op = optimizer.minimize(total_loss, tf.train.get_global_step())
-
+        
+        # logging_hook = tf.train.LoggingTensorHook({"loss": total_loss}, every_n_iter=1)
         output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
                 loss=total_loss,
@@ -196,7 +191,6 @@ def main(_):
 
 
 if __name__ == '__main__':
-    # main()
     tf.app.run()
 
 

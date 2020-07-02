@@ -1,8 +1,5 @@
 #!/usr/bin/env python3 
 # -*- coding: utf-8 -*- 
-
-
-
 import json
 import os
 import random 
@@ -11,18 +8,68 @@ import tensorflow as tf
 import util 
 from bert.tokenization import FullTokenizer
 
+"""
+Desc:
+suppose origin input_tokens are :
+['[unused19]', 'speaker', '#', '1', '[unused73]', '-', '-', 'basically', ',', 'it', 'was', 'unanimously', 'agreed', 'upon', 'by', 'the', 'various', 'relevant', 'parties', '.', 
+'To', 'express', 'its', 'determination', ',', 'the', 'Chinese', 'securities', 'regulatory', 'department', 'compares', 'this', 'stock', 'reform', 'to', 'a', 'die', 'that', 
+'has', 'been', 'cast', '.', 'It', 'takes', 'time', 'to', 'prove', 'whether', 'the', 'stock', 'reform', 'can', 'really', 'meet', 'expectations', ',', 'and', 'whether', 'any', 
+'de', '##viation', '##s', 'that', 'arise', 'during', 'the', 'stock', 'reform', 'can', 'be', 'promptly', 'corrected', '.', '[unused19]', 'Xu', '_', 'l', '##i', '[unused73]', 
+'Dear', 'viewers', ',', 'the', 'China', 'News', 'program', 'will', 'end', 'here', '.', 'This', 'is', 'Xu', 'Li', '.', 'Thank', 'you', 'everyone', 'for', 'watching', '.', 'Coming', 
+'up', 'is', 'the', 'Focus', 'Today', 'program', 'hosted', 'by', 'Wang', 'Shi', '##lin', '.', 'Good', '-', 'bye', ',', 'dear', 'viewers', '.'] 
+IF sliding window size is 50. 
+        
+Args:
+    doc_idx: a string: cctv/bn/0001
+    sentence_map: 
+        e.g. [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7]
+    subtoken_map: 
+        e.g. [0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 53, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 97, 98, 99, 99, 99, 100, 101, 102, 103]
+    flattened_window_input_ids: [num-window, window-size]
+        e.g. before bert_tokenizer convert subtokens into ids:
+        [['[CLS]', '[unused19]', 'speaker', '#', '1', '[unused73]', '-', '-', 'basically', ',', 'it', 'was', 'unanimously', 'agreed', 'upon', 'by', 'the', 'various', 'relevant', 'parties', '.', 'To', 'express', 'its', 'determination', ',', 'the', 'Chinese', 'securities', 'regulatory', 'department', 'compares', 'this', 'stock', 'reform', 'to', 'a', 'die', 'that', 'has', 'been', 'cast', '.', 'It', 'takes', 'time', 'to', 'prove', 'whether', '[SEP]'],
+        ['[CLS]', ',', 'the', 'Chinese', 'securities', 'regulatory', 'department', 'compares', 'this', 'stock', 'reform', 'to', 'a', 'die', 'that', 'has', 'been', 'cast', '.', 'It', 'takes', 'time', 'to', 'prove', 'whether', 'the', 'stock', 'reform', 'can', 'really', 'meet', 'expectations', ',', 'and', 'whether', 'any', 'de', '##viation', '##s', 'that', 'arise', 'during', 'the', 'stock', 'reform', 'can', 'be', 'promptly', 'corrected', '[SEP]'],
+        ['[CLS]', 'the', 'stock', 'reform', 'can', 'really', 'meet', 'expectations', ',', 'and', 'whether', 'any', 'de', '##viation', '##s', 'that', 'arise', 'during', 'the', 'stock', 'reform', 'can', 'be', 'promptly', 'corrected', '.', '[unused19]', 'Xu', '_', 'l', '##i', '[unused73]', 'Dear', 'viewers', ',', 'the', 'China', 'News', 'program', 'will', 'end', 'here', '.', 'This', 'is', 'Xu', 'Li', '.', 'Thank', '[SEP]'],
+        ['[CLS]', '.', '[unused19]', 'Xu', '_', 'l', '##i', '[unused73]', 'Dear', 'viewers', ',', 'the', 'China', 'News', 'program', 'will', 'end', 'here', '.', 'This', 'is', 'Xu', 'Li', '.', 'Thank', 'you', 'everyone', 'for', 'watching', '.', 'Coming', 'up', 'is', 'the', 'Focus', 'Today', 'program', 'hosted', 'by', 'Wang', 'Shi', '##lin', '.', 'Good', '-', 'bye', ',', 'dear', 'viewers', '[SEP]'],
+        ['[CLS]', 'you', 'everyone', 'for', 'watching', '.', 'Coming', 'up', 'is', 'the', 'Focus', 'Today', 'program', 'hosted', 'by', 'Wang', 'Shi', '##lin', '.', 'Good', '-', 'bye', ',', 'dear', 'viewers', '.', '[SEP]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]', '[PAD]']] 
+    flattened_window_masked_ids: [num-window, window-size]
+        e.g.: before bert_tokenizer ids:
+        [[-3, -1, -1, -1, -1, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -3],
+        [-3, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -3],
+        [-3, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, -1, -1, -1, -1, -1, -1, 68, 69, 70, 71, 72, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -3],
+        [-3, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -3],
+        [-3, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, -3, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4]]
+    span_start: 
+        e.g.: mention start indices in the original document 
+        [17, 20, 26, 43, 60, 85, 86]
+    span_end:
+        e.g.: mention end indices in the original document 
+    cluster_ids: 
+        e.g.: cluster ids for the (span_start, span_end) pairs
+        [1, 1, 2, 2, 2, 3, 3] 
+    span_mention:
+        mention of [0, 1] 
+    check the mention in the subword list: 
+        1. ['its']
+        1. ['the', 'Chinese', 'securities', 'regulatory', 'department']
+        2. ['this', 'stock', 'reform']
+        2. ['the', 'stock', 'reform']
+        2. ['the', 'stock', 'reform']
+        3. ['you']
+        3. ['everyone']
+"""
+
+
 subtoken_maps = {}
 gold = {}
 
-
-
-def prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size):
+def prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, \
+    vocab_file, sliding_window_size, demo=False):
 
     tokenizer = FullTokenizer(vocab_file=vocab_file, do_lower_case=False)
-    # for dataset in ['train', 'dev', 'test']:
-    writer = tf.python_io.TFRecordWriter(os.path.join(data_dir, "{}.{}.tfrecord".format(filename, language)))
+    writer = tf.python_io.TFRecordWriter(os.path.join(output_data_dir, "{}.{}.tfrecord".format(output_filename, language)))
 
-    data_file_path = os.path.join(data_dir, filename)
+    data_file_path = os.path.join(input_data_dir, input_filename)
     with open(data_file_path, "r") as f:
         documents = [json.loads(jsonline) for jsonline in f.readlines()]
     doc_map = {}
@@ -32,15 +79,16 @@ def prepare_training_data(data_dir, language, filename, config, vocab_file, slid
         if type(tensorized) is not tuple:
             tensorized = tuple(tensorized) 
         write_instance_to_example_file(writer, tensorized, doc_key, config)
-    with open(os.path.join(data_dir, "{}.{}.map".format(filename, language)), 'w') as fo:
+        doc_map[doc_idx] = doc_key
+        if demo and doc_idx > 5:
+            break 
+    with open(os.path.join(output_data_dir, "{}.{}.map".format(output_filename, language)), 'w') as fo:
         json.dump(doc_map, fo, indent=2)
 
 
 
 def write_instance_to_example_file(writer, instance, doc_key, config):
-    # input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends, cluster_ids, sentence_map
     input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends, cluster_ids, sentence_map = instance 
-    # doc_idx, sentence_map, subtoken_map, input_id_windows, mask_windows, span_starts, span_ends, cluster_ids = instance
     input_id_windows = input_ids 
     mask_windows = input_mask 
     flattened_input_ids = [i for j in input_id_windows for i in j]
@@ -51,6 +99,7 @@ def write_instance_to_example_file(writer, instance, doc_key, config):
     max_seg_len = int(config["max_segment_len"])
     before_pad_start = gold_starts 
     before_pad_end = gold_ends 
+    before_text_len = text_len 
 
     sentence_map = clip_or_pad(sentence_map, max_sequence_len*max_seg_len, pad_idx=-1)
     text_len = clip_or_pad(text_len, max_sequence_len, pad_idx=-1)
@@ -65,20 +114,20 @@ def write_instance_to_example_file(writer, instance, doc_key, config):
     gold_ends = clip_or_pad(gold_ends, config["max_cluster_num"], pad_idx=-1)
     cluster_ids = clip_or_pad(cluster_ids, config["max_cluster_num"], pad_idx=-1)
 
-    span_mention = pad_span_mention(len(flattened_input_ids), before_pad_start, before_pad_end)
+    span_mention  = pad_span_mention(before_text_len, config, before_pad_start, before_pad_end)
 
     features = {
-        'sentence_map': create_int_feature(sentence_map), # 
-        'text_len': create_int_feature(text_len), # 
-        'subtoken_map': create_int_feature(tmp_subtoken_maps),  # 
-        'speaker_ids': create_int_feature(tmp_speaker_ids), # 
+        'sentence_map': create_int_feature(sentence_map), 
+        'text_len': create_int_feature(text_len), 
+        'subtoken_map': create_int_feature(tmp_subtoken_maps), 
+        'speaker_ids': create_int_feature(tmp_speaker_ids), 
         'flattened_input_ids': create_int_feature(flattened_input_ids),
         'flattened_input_mask': create_int_feature(flattened_input_mask),
         'genre': create_int_feature([genre]),
-        'span_starts': create_int_feature(gold_starts), # 
-        'span_ends': create_int_feature(gold_ends), # 
+        'span_starts': create_int_feature(gold_starts), 
+        'span_ends': create_int_feature(gold_ends), 
         'cluster_ids': create_int_feature(cluster_ids),
-        'span_mention': create_int_feature(span_mention) # 
+        'span_mention': create_int_feature(span_mention) 
     }
     tf_example = tf.train.Example(features=tf.train.Features(feature=features))
     writer.write(tf_example.SerializeToString())
@@ -93,18 +142,28 @@ def clip_or_pad(var, max_var_len, pad_idx=-1):
         var = list(var) + list(pad_var) 
         return var 
 
+def pad_span_mention(text_len_lst, config, before_pad_start, before_pad_end):
+    span_mention = np.zeros((config["max_training_sentences"], config["max_segment_len"], config["max_segment_len"]), dtype=int)
 
-def pad_span_mention(text_len, before_pad_start, before_pad_end):
-    span_mention = np.zeros((text_len, text_len), dtype=int).tolist()
+    for idx, (tmp_s, tmp_e) in enumerate(zip(before_pad_start, before_pad_end)):
+        start_seg = int(tmp_s // config["max_segment_len"])
+        end_seg = int(tmp_s // config["max_segment_len"])
+        if start_seg != end_seg:
+            continue 
+        try:
+            sent_idx = int(tmp_s // config["max_segment_len"]) + 1 if tmp_s % config["max_segment_len"] != 0 else int(tmp_s // config["max_segment_len"])
+            start_offset = tmp_s % config["max_segment_len"] 
+            end_offset = tmp_e % config["max_segment_len"]
+            span_mention[sent_idx, start_offset, end_offset] = 1 
+        except:
+            continue 
 
-    for tmp_s, tmp_e in zip(before_pad_start, before_pad_end):
-        span_mention[tmp_s][tmp_e] = 1
+    flatten_span_mention = np.reshape(span_mention, (1, -1))
+    flatten_span_mention = flatten_span_mention.tolist()
+    flatten_span_mention = [j for j in flatten_span_mention]
 
-    flatten_span_mention = [i for j in span_mention for i in j]
-    
-    return flatten_span_mention 
-
-    
+    return flatten_span_mention[0]
+  
 
 def create_int_feature(values):
     feature = tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
@@ -171,19 +230,6 @@ def tensorize_example(example, config, tokenizer, is_training):
         # xiaoya : to do tensor_list[0], tensor_list[i] 
         input_ids, input_mask, text_len, speaker_ids, genre, is_training, gold_starts, gold_ends, cluster_ids, sentence_map = tensor_list[0]
 
-        #####################################################
-        # please check the tensor list : 
-        # 1
-        # input_ids Tensor("Shape:0", shape=(2,), dtype=int32)
-        # input_mask Tensor("Shape_1:0", shape=(2,), dtype=int32)
-        # text_len Tensor("Shape_2:0", shape=(1,), dtype=int32)
-        # speaker_ids Tensor("Shape_3:0", shape=(2,), dtype=int32)
-        # genre Tensor("Shape_4:0", shape=(0,), dtype=int32)
-        # sentence_map Tensor("Shape_5:0", shape=(1,), dtype=int32)
-        # cluster_ids Tensor("Shape_6:0", shape=(1,), dtype=int32)
-        # gold_starts Tensor("Shape_7:0", shape=(1,), dtype=int32)
-        # gold_ends Tensor("Shape_8:0", shape=(1,), dtype=int32)
-        # ###################################################
         return tensor_list[0]
     else:
         return example_tensors
@@ -230,21 +276,45 @@ def get_speaker_dict(speakers, config):
     return speaker_dict
 
 
-
 if __name__ == '__main__':
-    # python3 build_data_to_tfrecord.py train_spanbert_base
-    config = util.initialize_from_env(use_tpu=False)
-    data_dir = "/xiaoya/test_data_gen"
-    language = "english"
-    vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
-    # filename = "dev.english.128.jsonlines"
-    # filename = "dev.english.128.jsonlines"
-    filename = "test.english.128.jsonlines"
-    sliding_window_size = 128
-    # prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
-    prepare_training_data(data_dir, language, filename, config, vocab_file, sliding_window_size)
+    # python3 build_data_to_tfrecord.py 
+    data_sign = "test"
+    for sliding_window_size in [128]:
+        print("=*="*20)
+        print("current sliding window size is : {}".format(str(sliding_window_size)))
+        print("=*="*20)
+        for data_sign in ["train", "dev", "test"]:
+            print("%*%"*20)
+            print(data_sign)
+            print("%*%"*20)
+            config = util.initialize_from_env(use_tpu=False)
+            language = "english"
+            vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
+            input_data_dir = "/xiaoya/data" 
 
+            input_filename = "{}.english.{}.jsonlines".format(data_sign, str(sliding_window_size))
+    
+            output_data_dir = "/xiaoya/tpu_data/mention_proposal/span_all_{}_{}".format(str(sliding_window_size), str(config["max_training_sentences"]))
+            os.makedirs(output_data_dir, exist_ok=True)
+            output_filename = "{}.english.jsonlines".format(data_sign)
+            print("$^$"*30)
+            print(output_data_dir, output_filename)
+            print("$^$"*30)
+            prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, sliding_window_size)
 
+    # prepare demo dataset 
+    # config = util.initialize_from_env(use_tpu=False)
+    # vocab_file = "/xiaoya/pretrain_ckpt/spanbert_base_cased/vocab.txt"
+    # input_data_dir = "/xiaoya/data" 
+    # language = "english"
+    # input_filename = "{}.english.128.jsonlines".format(data_sign)
+    # sliding_window_size = 128
+    # output_data_dir = "/xiaoya/tpu_data/mention_proposal/test_span"
+    # output_data_dir = "/xiaoya/tpu_data/mention_proposal/demo_128_{}".format(str(config["max_training_sentences"]))
+    # os.makedirs(output_data_dir, exist_ok=True)
+    # output_filename = "{}.english.jsonlines".format(data_sign)
 
+    # prepare_training_data(input_data_dir, output_data_dir, input_filename, output_filename, language, config, vocab_file, \
+    #     sliding_window_size, demo=True)
 
 

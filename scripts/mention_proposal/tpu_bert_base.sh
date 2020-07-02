@@ -4,12 +4,12 @@
 
 
 REPO_PATH=/home/xiaoyli1110/xiaoya/Coref-tf
+export PYTHONPATH=${REPO_PATH}
 export PYTHONPATH="$PYTHONPATH:/home/xiaoyli1110/xiaoya/Coref-tf"
 # export TPU_NAME=tensorflow-tpu
 export TPU_NAME=tf-tpu
 GCP_PROJECT=xiaoyli-20-04-274510
-OUTPUT_DIR=gs://mention_proposal/span_all_128_5_output_bertbase
-
+OUTPUT_DIR=gs://mention_proposal/output_30
 
 
 python3 ${REPO_PATH}/run/train_mention_proposal.py \

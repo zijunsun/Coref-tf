@@ -14,7 +14,7 @@ def file_based_input_fn_builder(input_file, seq_length, config, is_training, dro
             'span_ends': tf.FixedLenFeature([config["max_cluster_num"]], tf.int64), 
             'cluster_ids': tf.FixedLenFeature([config["max_cluster_num"]], tf.int64),
             'sentence_map': tf.FixedLenFeature([config["max_training_sentences"] * config["max_segment_len"]], tf.int64), 
-            'span_mention': tf.FixedLenFeature([config["max_training_sentences"] * config["max_segment_len"]*config["max_training_sentences"] * config["max_segment_len"]], tf.int64)}
+            'span_mention': tf.FixedLenFeature([config["max_training_sentences"] * config["max_segment_len"]* config["max_segment_len"]], tf.int64)}
 
     def _decode_record(record, name_to_features):
         """Decodes a record to a TensorFlow example."""
