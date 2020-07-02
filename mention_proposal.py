@@ -111,7 +111,7 @@ class MentionProposalModel(object):
         gold_starts, gold_ends, cluster_ids, sentence_map, span_mention=None):
         """get mention proposals"""
 
-        start_end_loss_mask = tf.where(tf.cast(tf.math.greater_equal(input_ids, tf.zeros_like(input_ids)),tf.bool), x=tf.ones_like(input_ids), y=tf.zeros_like(input_ids)) 
+        start_end_loss_mask = tf.cast(tf.where(tf.cast(tf.math.greater_equal(input_ids, tf.zeros_like(input_ids)),tf.bool), x=tf.ones_like(input_ids), y=tf.zeros_like(input_ids)), tf.float32) 
         input_ids = tf.where(tf.cast(tf.math.greater_equal(input_ids, tf.zeros_like(input_ids)),tf.bool), x=input_ids, y=tf.zeros_like(input_ids)) 
         input_mask = tf.where(tf.cast(tf.math.greater_equal(input_mask, tf.zeros_like(input_mask)), tf.bool), x=input_mask, y=tf.zeros_like(input_mask)) 
         text_len = tf.where(tf.cast(tf.math.greater_equal(text_len, tf.zeros_like(text_len)), tf.bool), x= text_len, y=tf.zeros_like(text_len)) 
@@ -121,7 +121,7 @@ class MentionProposalModel(object):
         cluster_ids = tf.where(tf.cast(tf.math.greater_equal(cluster_ids, tf.zeros_like(cluster_ids)),tf.bool), x=cluster_ids, y=tf.zeros_like(cluster_ids)) 
         sentence_map = tf.where(tf.cast(tf.math.greater_equal(sentence_map, tf.zeros_like(sentence_map)),tf.bool), x=sentence_map, y=tf.zeros_like(sentence_map)) 
         span_mention = tf.where(tf.cast(tf.math.greater_equal(span_mention, tf.zeros_like(span_mention)),tf.bool), x=span_mention, y=tf.zeros_like(span_mention)) 
-        span_mention_loss_mask = tf.where(tf.cast(tf.math.greater_equal(span_mention, tf.zeros_like(span_mention)),tf.bool), x=tf.ones_like(span_mention), y=tf.zeros_like(span_mention)) 
+        span_mention_loss_mask = tf.cast(tf.where(tf.cast(tf.math.greater_equal(span_mention, tf.zeros_like(span_mention)),tf.bool), x=tf.ones_like(span_mention), y=tf.zeros_like(span_mention)) , tf.float32)
         # span
 
         # gold_starts -> [1, 3, 5, 8, -1, -1, -1, -1] -> [1, 3, 5, 8, 0, 0, 0, 0]
