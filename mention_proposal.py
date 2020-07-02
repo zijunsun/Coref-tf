@@ -63,7 +63,7 @@ class MentionProposalModel(object):
         if self.config["run"] == "session":
             self.loss, self.pred_start_scores, self.pred_end_scores = self.get_mention_proposal_and_loss(*self.input_tensors)
         else:
-            self.loss, self.pred_start_scores, self.pred_end_scores, self.pred_mention_scores = self.get_mention_proposal_and_loss(*self.input_tensors)
+            # self.loss, self.pred_start_scores, self.pred_end_scores, self.pred_mention_scores = self.get_mention_proposal_and_loss(*self.input_tensors)
 
         tvars = tf.trainable_variables()
         # If you're using TF weights only, tf_checkpoint and init_checkpoint can be the same
