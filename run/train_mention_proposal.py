@@ -97,7 +97,7 @@ def model_fn_builder(config):
             scaffold_fn = None 
         
 
-        print("**** Trainable Variables ****")
+        tf.logging.info("**** Trainable Variables ****")
         for var in tvars:
             init_string = ""
             if var.name in initialized_variable_names:
@@ -105,9 +105,10 @@ def model_fn_builder(config):
             tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape, init_string)
 
         if is_training: 
+            tf.logging.info("****************************** Training On TPU ******************************")
             total_loss, start_scores, end_scores, span_scores = model.get_mention_proposal_and_loss(input_ids, input_mask, \
                 text_len, speaker_ids, genre, is_training, gold_starts,
-                gold_ends, cluster_ids, sentence_map, span_mention)
+                gold_ends, cluster_ids, sentence_map, span_mention=span_mention)
 
             if config["device"] == "tpu":
                 tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
