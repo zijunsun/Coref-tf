@@ -185,8 +185,8 @@ class MentionProposalModel(object):
         # span_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=span_scores, labels=span_mention))
 
         start_loss = self.bce_loss(y_pred=start_scores, y_true=tf.cast(gold_start_label, tf.float32))
-        end_loss = self.bce_loss(y_pred=end_scores, y_true=tf.cast(gold_end_label),tf.float32)
-        span_loss = self.bce_loss(y_pred=span_scores, y_true=tf.cast(span_mention),tf.float32)
+        end_loss = self.bce_loss(y_pred=end_scores, y_true=tf.cast(gold_end_label),tf.float32)）
+        span_loss = self.bce_loss(y_pred=span_scores, y_true=tf.cast(span_mention),tf.float32)）
 
         if span_mention is None :
             loss = (start_loss + end_loss )/2  
