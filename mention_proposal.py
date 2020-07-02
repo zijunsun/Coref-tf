@@ -57,7 +57,6 @@ class MentionProposalModel(object):
         queue = tf.PaddingFIFOQueue(capacity=10, dtypes=dtypes, shapes=shapes)  # 10是batch_size?
         self.enqueue_op = queue.enqueue(self.queue_input_tensors)
         self.input_tensors = queue.dequeue()  # self.queue_input_tensors 不一样？
-        # self.bce_loss = tf.keras.losses.BinaryCrossentropy()
 
         if self.config["run"] == "session":
             self.loss, self.pred_start_scores, self.pred_end_scores = self.get_mention_proposal_and_loss(*self.input_tensors)
@@ -184,10 +183,6 @@ class MentionProposalModel(object):
         span_mention = tf.cast(tf.one_hot(tf.reshape(span_mention, [-1]), 2, axis=-1),tf.float32)
 
         start_end_loss_mask = tf.reshape(start_end_loss_mask, [-1])
-        # start_loss = self.bce_loss(y_pred=start_scores, y_true=gold_start_label)
-        # end_loss = self.bce_loss(y_pred=end_scores, y_true=gold_end_label)
-        # span_loss = self.bce_loss(y_pred=span_scores, y_true=span_mention)
-
         # true, pred 
         start_loss = tf.keras.losses.binary_crossentropy(gold_start_label, start_scores,)
         end_loss = tf.keras.losses.binary_crossentropy(gold_end_label, end_scores)
