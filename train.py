@@ -18,12 +18,12 @@ logger.setLevel(logging.INFO)
 
 
 def main():
-    config = util.initialize_from_env()
+    config = util.initialize_from_env(use_tpu=False)
 
     report_frequency = config["report_frequency"]
     eval_frequency = config["eval_frequency"]
 
-    model = util.get_model(config)
+    model = util.get_model(config, model_sign="mention_proposal")
     saver = tf.train.Saver()
 
     log_dir = config["log_dir"]
@@ -53,7 +53,6 @@ def main():
         while True:
             tf_loss, tf_global_step, _ = session.run([model.loss, model.global_step, model.train_op])
             accumulated_loss += tf_loss
-            # print('tf global_step', tf_global_step)
 
             if tf_global_step % report_frequency == 0:
                 steps_per_second = (tf_global_step - initial_step) / (time.time() - initial_time)
