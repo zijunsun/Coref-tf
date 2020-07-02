@@ -19,15 +19,13 @@ def file_based_input_fn_builder(input_file, seq_length, config, is_training, dro
     def _decode_record(record, name_to_features):
         """Decodes a record to a TensorFlow example."""
         example = tf.io.parse_single_example(record, name_to_features)
-
         # tf.Example only supports tf.int64, but the TPU only supports tf.int32.
         # So cast all int64 to int32.
         for name in list(example.keys()):
             t = example[name]
             if t.dtype == tf.int64:
                 t = tf.to_int32(t)
-            example[name] = t
-
+            example[name] = t 
         return example
 
 
@@ -49,5 +47,4 @@ def file_based_input_fn_builder(input_file, seq_length, config, is_training, dro
             drop_remainder=True))
 
         return d
-
     return input_fn_from_tfrecord 

@@ -40,7 +40,6 @@ FLAGS = tf.flags.FLAGS
 
 
 def model_fn_builder(config):
-    # init_checkpoint = config.init_checkpoint
 
     def model_fn(features, labels, mode, params):  # pylint: disable=unused-argument
         """The `model_fn` for TPUEstimator."""
@@ -105,40 +104,40 @@ def model_fn_builder(config):
                 init_string = ", *INIT_FROM_CKPT*"
             tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape, init_string)
 
-        # optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.config['bert_learning_rate'])
-        total_loss, pred_mention_labels, gold_mention_labels = model.get_mention_proposal_and_loss(input_ids, input_mask, \
+        if is_training: 
+            total_loss, start_scores, end_scores, span_scores = model.get_mention_proposal_and_loss(input_ids, input_mask, \
                 text_len, speaker_ids, genre, is_training, gold_starts,
                 gold_ends, cluster_ids, sentence_map, span_mention)
 
-        if config["device"] == "tpu":
-            tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
-            optimizer = tf.train.AdamOptimizer(learning_rate=config['bert_learning_rate'], beta1=0.9, beta2=0.999, epsilon=1e-08)
-            optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
-            train_op = optimizer.minimize(total_loss, tf.train.get_global_step()) 
-        else:
-            optimizer = RAdam(learning_rate=config['bert_learning_rate'], epsilon=1e-8, beta1=0.9, beta2=0.999)
-            train_op = optimizer.minimize(total_loss, tf.train.get_global_step())
+            if config["device"] == "tpu":
+                tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
+                optimizer = tf.train.AdamOptimizer(learning_rate=config['bert_learning_rate'], beta1=0.9, beta2=0.999, epsilon=1e-08)
+                optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
+                train_op = optimizer.minimize(total_loss, tf.train.get_global_step()) 
+            else:
+                optimizer = RAdam(learning_rate=config['bert_learning_rate'], epsilon=1e-8, beta1=0.9, beta2=0.999)
+                train_op = optimizer.minimize(total_loss, tf.train.get_global_step())
         
-        # logging_hook = tf.train.LoggingTensorHook({"loss": total_loss}, every_n_iter=1)
-        output_spec = tf.contrib.tpu.TPUEstimatorSpec(
-                mode=mode,
-                loss=total_loss,
-                train_op=train_op,
+            # logging_hook = tf.train.LoggingTensorHook({"loss": total_loss}, every_n_iter=1)
+            output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+                    mode=mode,
+                    loss=total_loss,
+                    train_op=train_op,
+                    scaffold_fn=scaffold_fn)
+        else:
+            total_loss, start_scores, end_scores, span_scores = model.get_mention_proposal_and_loss(input_ids, input_mask, \
+                text_len, speaker_ids, genre, is_training, gold_starts,
+                gold_ends, cluster_ids, sentence_map, span_mention)
+            
+            predictions = {"total_loss": total_loss,
+                    "start_scores": start_scores,
+                    "end_scores": end_scores, 
+                    "span_scores": span_scores}
+
+            output_spec = tf.contrib.tpu.TPUEstimatorSpec(mode=tf.estimator.ModeKeys.PREDICT, \
+                predictions=predictions, \
                 scaffold_fn=scaffold_fn)
-
-        # else:
-            # is_training = (mode == tf.estimator.ModeKeys.TRAIN)
-
-            # def metric_fn(loss):
-            #    summary_dict, average_f1 =  model.evaluate(features, is_training)
-            #     return summary_dict, average_f1
-            # eval_metrics = (metric_fn, [total_loss])
-            # output_spec = tf.contrib.tpu.TPUEstimatorSpec(
-            #     mode=mode,
-            #     loss=total_loss,
-            #     eval_metrics=eval_metrics,
-            #     scaffold_fn=scaffold_fn)
-
+        
         return output_spec
 
     return model_fn

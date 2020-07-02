@@ -18,8 +18,11 @@ import numpy as np
 import tensorflow as tf
 
 import util
+import metrics 
+import optimization 
 from bert import modeling
 from bert import tokenization
+
 
 
 
@@ -38,6 +41,56 @@ class MentionProposalModel(object):
         self.tokenizer = tokenization.FullTokenizer(vocab_file=config['vocab_file'], do_lower_case=False)
         self.bce_loss = tf.keras.losses.BinaryCrossentropy()
 
+        input_props = []
+        input_props.append((tf.int32, [None, None]))  # input_ids. (batch_size, seq_len)
+        input_props.append((tf.int32, [None, None]))  # input_mask (batch_size, seq_len)
+        input_props.append((tf.int32, [None]))  # Text lengths.
+        input_props.append((tf.int32, [None, None]))  # Speaker IDs.  (batch_size, seq_len)
+        input_props.append((tf.int32, []))  # Genre.  能确保整个batch都是同主题，能因为一篇文章的多段放在一个batch里
+        input_props.append((tf.bool, []))  # Is training.
+        input_props.append((tf.int32, [None]))  # Gold starts. 一个instance只有一个start?是整篇文章的所有mention的start
+        input_props.append((tf.int32, [None]))  # Gold ends. 整篇文章的所有mention的end
+        input_props.append((tf.int32, [None]))  # Cluster ids. 整篇文章的所有mention的id
+        input_props.append((tf.int32, [None]))  # Sentence Map 整篇文章的每个token属于哪个句子
+
+        self.queue_input_tensors = [tf.placeholder(dtype, shape) for dtype, shape in input_props]
+        dtypes, shapes = zip(*input_props)
+        queue = tf.PaddingFIFOQueue(capacity=10, dtypes=dtypes, shapes=shapes)  # 10是batch_size?
+        self.enqueue_op = queue.enqueue(self.queue_input_tensors)
+        self.input_tensors = queue.dequeue()  # self.queue_input_tensors 不一样？
+        self.bce_loss = tf.keras.losses.BinaryCrossentropy()
+
+        if self.config["run"] == "session":
+            self.loss, self.pred_start_scores, self.pred_end_scores = self.get_mention_proposal_and_loss(*self.input_tensors)
+        else:
+            self.loss, self.pred_start_scores, self.pred_end_scores, self.pred_mention_scores = self.get_mention_proposal_and_loss(*self.input_tensors)
+
+        tvars = tf.trainable_variables()
+        # If you're using TF weights only, tf_checkpoint and init_checkpoint can be the same
+        # Get the assignment map from the tensorflow checkpoint.
+        # Depending on the extension, use TF/Pytorch to load weights.
+        assignment_map, initialized_variable_names = modeling.get_assignment_map_from_checkpoint(tvars, config['tf_checkpoint'])
+        init_from_checkpoint = tf.train.init_from_checkpoint  
+        init_from_checkpoint(config['init_checkpoint'], assignment_map)
+        print("**** Trainable Variables ****")
+        for var in tvars:
+            init_string = ""
+            if var.name in initialized_variable_names:
+                init_string = ", *INIT_FROM_CKPT*"
+                tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape, init_string)
+                print("  name = %s, shape = %s%s" % (var.name, var.shape, init_string))
+
+        num_train_steps = int(self.config['num_docs'] * self.config['num_epochs'])  # 文章数 * 训练轮数
+        num_warmup_steps = int(num_train_steps * 0.1)  # 前1/10做warm_up
+        self.global_step = tf.train.get_or_create_global_step()  # 根据不同的model得到不同的optimizer
+        self.train_op = optimization.create_custom_optimizer(tvars, self.loss, self.config['bert_learning_rate'],
+                                                            self.config['task_learning_rate'],
+                                                            num_train_steps, num_warmup_steps, False, self.global_step,
+                                                            freeze=-1, task_opt=self.config['task_optimizer'],
+                                                            eps=config['adam_eps'])
+
+        self.coref_evaluator = metrics.CorefEvaluator()
+
     def restore(self, session):
         """在evaluate和predict阶段加载整个模型"""
         # Don't try to restore unused variables from the TF-Hub ELMo module.
@@ -52,10 +105,8 @@ class MentionProposalModel(object):
     def get_dropout(self, dropout_rate, is_training):  # is_training为True时keep=1-drop, 为False时keep=1
         return 1 - (tf.to_float(is_training) * dropout_rate)
 
-    def get_mention_proposal_and_loss(
-        self, input_ids, input_mask, text_len, speaker_ids, genre, is_training,
-        gold_starts, gold_ends, cluster_ids, sentence_map, span_mention
-    ):
+    def get_mention_proposal_and_loss(self, input_ids, input_mask, text_len, speaker_ids, genre, is_training,
+        gold_starts, gold_ends, cluster_ids, sentence_map, span_mention=None):
         """get mention proposals"""
 
         input_ids = tf.where(tf.cast(tf.math.greater_equal(input_ids, tf.zeros_like(input_ids)),tf.bool), x=input_ids, y=tf.zeros_like(input_ids)) 
@@ -114,18 +165,21 @@ class MentionProposalModel(object):
         end_shape = tf.constant([self.config["max_training_sentences"] * self.config["max_segment_len"]])
         gold_end_label = tf.cast(tf.scatter_nd(gold_end_label, end_value, end_shape), tf.float32)
         # gold_end_label = tf.boolean_mask(gold_end_label, tf.reshape(input_mask, [-1]))
-        start_scores = tf.cast(tf.reshape(tf.sigmoid(start_scores), [-1]),tf.float32)
-        end_scores = tf.cast(tf.reshape(tf.sigmoid(end_scores), [-1]),tf.float32)
-        span_scores = tf.cast(tf.reshape(tf.sigmoid(span_scores), [-1]), tf.float32)
+        start_scores = tf.cast(tf.reshape(start_scores, [-1]),tf.float32)
+        end_scores = tf.cast(tf.reshape(end_scores, [-1]),tf.float32)
+        span_scores = tf.cast(tf.reshape(span_scores, [-1]), tf.float32)
         span_mention = tf.cast(span_mention, tf.float32)
 
         start_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=start_scores, labels=tf.reshape(gold_start_label, [-1]))) 
         end_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=end_scores, labels=tf.reshape(gold_end_label, [-1])))
         span_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=span_scores, labels=tf.reshape(span_mention, [-1])))
                 
-        loss = (start_loss + end_loss )/2  + span_loss 
-        # loss = tf.Print(loss, [loss])
-        return loss, start_scores, end_scores
+        if span_mention is None :
+            loss = (start_loss + end_loss )/2  
+            return loss, start_scores, end_scores
+        else:
+            loss = (start_loss + end_loss ) /2  + span_loss 
+            return loss, start_scores, end_scores, span_scores 
 
 
     def flatten_emb_by_sentence(self, emb, text_len_mask):
@@ -196,3 +250,33 @@ class MentionProposalModel(object):
         mention_span_score = tf.reshape(mention_span_score, [-1])
         gold_mention_span = tf.reshape(gold_mention_span, [-1])
         return tf.nn.sigmoid_cross_entropy_with_logits(labels=gold_mention_span, logits=mention_span_score) 
+
+
+    def start_enqueue_thread(self, session):
+        with open(self.config["train_path"]) as f:
+            train_examples = [json.loads(jsonline) for jsonline in f.readlines()]
+
+        def _enqueue_loop():
+            while True:  # 每个例子是一篇文章，同一篇文章的所有段落一起做session run
+                random.shuffle(train_examples)
+                if self.config['single_example']:
+                    for example in train_examples:
+                        tensorized_example = self.tensorize_example(example, is_training=True)
+                        feed_dict = dict(zip(self.queue_input_tensors, tensorized_example))
+                        session.run(self.enqueue_op, feed_dict=feed_dict)
+                else:  
+                    examples = []
+                    for example in train_examples:
+                        tensorized = self.tensorize_example(example, is_training=True)
+                        if type(tensorized) is not list:
+                            tensorized = [tensorized]
+                        examples += tensorized
+                    random.shuffle(examples)
+                    print('num examples', len(examples))
+                    for example in examples:
+                        feed_dict = dict(zip(self.queue_input_tensors, example))
+                        session.run(self.enqueue_op, feed_dict=feed_dict)
+
+        enqueue_thread = threading.Thread(target=_enqueue_loop)
+        enqueue_thread.daemon = True
+        enqueue_thread.start()
