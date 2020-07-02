@@ -185,10 +185,10 @@ class MentionProposalModel(object):
         span_loss = self.bce_loss(y_pred=span_scores, y_true=span_mention)
 
         if span_mention is None :
-            loss = (start_loss + end_loss )/2  
+            loss = self.config["start_ratio"] * start_loss + self.config["end_ratio"] * end_loss 
             return loss, start_scores, end_scores
         else:
-            loss = (start_loss + end_loss ) /2  + span_loss 
+            loss = self.config["start_ratio"] * start_loss + self.config["end_ratio"] * end_loss +self.config["mention_ratio"] * span_loss 
             return loss, start_scores, end_scores, span_scores 
 
 
