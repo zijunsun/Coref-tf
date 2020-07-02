@@ -39,7 +39,7 @@ class MentionProposalModel(object):
         self.bert_config = modeling.BertConfig.from_json_file(config["bert_config_file"])
         self.bert_config.hidden_dropout_prob = self.config["dropout_rate"]
         self.tokenizer = tokenization.FullTokenizer(vocab_file=config['vocab_file'], do_lower_case=False)
-        self.bce_loss = tf.keras.losses.BinaryCrossentropy(reduction=tf.keras.losses.Reduction.NONE)
+        self.bce_loss = tf.keras.losses.BinaryCrossentropy(reduction=tf.keras.losses.ReductionV2.NONE)
 
         input_props = []
         input_props.append((tf.int32, [None, None]))  # input_ids. (batch_size, seq_len)
