@@ -120,44 +120,47 @@ class MentionProposalModel(object):
         gold_ends = tf.where(tf.cast(tf.math.greater_equal(gold_ends, tf.zeros_like(gold_ends)),tf.bool), x=gold_ends, y=tf.zeros_like(gold_ends) ) 
         cluster_ids = tf.where(tf.cast(tf.math.greater_equal(cluster_ids, tf.zeros_like(cluster_ids)),tf.bool), x=cluster_ids, y=tf.zeros_like(cluster_ids)) 
         sentence_map = tf.where(tf.cast(tf.math.greater_equal(sentence_map, tf.zeros_like(sentence_map)),tf.bool), x=sentence_map, y=tf.zeros_like(sentence_map)) 
+        span_mention = tf.where(tf.cast(tf.math.greater_equal(span_mention, tf.zeros_like(span_mention)),tf.bool), x=span_mention, y=tf.zeros_like(span_mention)) 
+        span_mention_loss_mask = tf.where(tf.cast(tf.math.greater_equal(span_mention, tf.zeros_like(span_mention)),tf.bool), x=tf.ones_like(span_mention), y=tf.zeros_like(span_mention)) 
+        # span
 
+        # gold_starts -> [1, 3, 5, 8, -1, -1, -1, -1] -> [1, 3, 5, 8, 0, 0, 0, 0]
 
-        input_ids = tf.reshape(input_ids, [-1, self.config["max_segment_len"]])
-        input_mask  = tf.reshape(input_mask, [-1, self.config["max_segment_len"]])
-        text_len = tf.reshape(text_len, [-1])
-        speaker_ids = tf.reshape(speaker_ids, [-1, self.config["max_segment_len"]])
-        sentence_map = tf.reshape(sentence_map, [-1])
-        cluster_ids = tf.reshape(cluster_ids, [-1]) 
-        gold_starts = tf.reshape(gold_starts, [-1]) 
-        gold_ends = tf.reshape(gold_ends, [-1]) 
+        input_ids = tf.reshape(input_ids, [-1, self.config["max_segment_len"]])    # (max_train_sent, max_segment_len) 
+        input_mask  = tf.reshape(input_mask, [-1, self.config["max_segment_len"]])   # (max_train_sent, max_segment_len)
+        text_len = tf.reshape(text_len, [-1])  # (max_train_sent)
+        speaker_ids = tf.reshape(speaker_ids, [-1, self.config["max_segment_len"]])  # (max_train_sent, max_segment_len) 
+        sentence_map = tf.reshape(sentence_map, [-1])   # (max_train_sent * max_segment_len) 
+        cluster_ids = tf.reshape(cluster_ids, [-1])     # (max_train_sent * max_segment_len) 
+        gold_starts = tf.reshape(gold_starts, [-1])     # (max_train_sent * max_segment_len) 
+        gold_ends = tf.reshape(gold_ends, [-1])         # (max_train_sent * max_segment_len) 
         span_mention = tf.reshape(span_mention, [self.config["max_training_sentences"], self.config["max_segment_len"] * self.config["max_segment_len"]])
+        # span_mention : (max_train_sent, max_segment_len, max_segment_len)
 
+        model = modeling.BertModel(config=self.bert_config, is_training=is_training, input_ids=input_ids,
+            input_mask=input_mask, use_one_hot_embeddings=False, scope='bert')
 
-        model = modeling.BertModel(
-            config=self.bert_config,
-            is_training=is_training,
-            input_ids=input_ids,
-            input_mask=input_mask,
-            use_one_hot_embeddings=False,
-            scope='bert')
         self.dropout = self.get_dropout(self.config["dropout_rate"], is_training)
-        mention_doc = model.get_sequence_output()  # (batch_size, seq_len, hidden)
-        mention_doc = self.flatten_emb_by_sentence(mention_doc, input_mask)  # (b, s, e) -> (b*s, e) 取出有效token的emb
-        num_words = util.shape(mention_doc, 0)  # b*s
+        mention_doc = model.get_sequence_output()  # (max_train_sent, max_segment_len, hidden)
+        mention_doc = self.flatten_emb_by_sentence(mention_doc, input_mask)  # (max_train_sent, max_segment_len, emb) -> (max_train_sent * max_segment_len, e) 取出有效token的emb
+        num_words = util.shape(mention_doc, 0)  # max_train_sent * max_segment_len
 
-        seg_mention_doc = tf.reshape(mention_doc, [self.config["max_training_sentences"], self.config["max_segment_len"], -1])
-        start_seg_mention_doc = tf.stack([seg_mention_doc] * self.config["max_segment_len"], axis=1)
-        end_seg_mention_doc = tf.stack([seg_mention_doc, ] * self.config["max_segment_len"], axis=2)
-        span_mention_doc = tf.concat([start_seg_mention_doc, end_seg_mention_doc], axis=-1) 
+        seg_mention_doc = tf.reshape(mention_doc, [self.config["max_training_sentences"], self.config["max_segment_len"], -1]) # (max_train_sent, max_segment_len, embed)
+        start_seg_mention_doc = tf.stack([seg_mention_doc] * self.config["max_segment_len"], axis=1) # (max_train_sent, 1, max_segment_len, embed) -> (max_train_sent, max_segment_len, max_segment_len, embed)
+        end_seg_mention_doc = tf.stack([seg_mention_doc, ] * self.config["max_segment_len"], axis=2) # (max_train_sent, max_segment_len, 1, embed) -> (max_train_sent, max_segment_len, max_segment_len, embed)
+        span_mention_doc = tf.concat([start_seg_mention_doc, end_seg_mention_doc], axis=-1) # (max_train_sent, max_segment_len, max_segment_len, embed * 2)
         span_mention_doc = tf.reshape(span_mention_doc, (self.config["max_training_sentences"]*self.config["max_segment_len"]*self.config["max_segment_len"], -1))
-        with tf.variable_scope("span_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
-            span_scores = util.ffnn(span_mention_doc, self.config["ffnn_depth"], self.config["ffnn_size"]*2, 1, self.dropout)
-        with tf.variable_scope("start_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
-            start_scores = util.ffnn(mention_doc, self.config["ffnn_depth"], self.config["ffnn_size"], 1, self.dropout)
-        with tf.variable_scope("end_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
-            end_scores = util.ffnn(mention_doc, self.config["ffnn_depth"], self.config["ffnn_size"], 1, self.dropout)
+        # # (max_train_sent * max_segment_len * max_segment_len, embed * 2)
 
-        gold_start_label = tf.reshape(gold_starts, [-1, 1])
+        with tf.variable_scope("span_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
+            span_scores = util.ffnn(span_mention_doc, self.config["ffnn_depth"], self.config["ffnn_size"]*2, 1, self.dropout) # (max_train_sent, max_segment_len, 1)
+        with tf.variable_scope("start_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
+            start_scores = util.ffnn(mention_doc, self.config["ffnn_depth"], self.config["ffnn_size"], 1, self.dropout) # (max_train_sent, max_segment_len, 1) 
+        with tf.variable_scope("end_scores", reuse=tf.AUTO_REUSE):  # [k, 1] 每个候选span的得分
+            end_scores = util.ffnn(mention_doc, self.config["ffnn_depth"], self.config["ffnn_size"], 1, self.dropout) # (max_train_sent, max_segment_len, 1)
+
+        gold_start_label = tf.reshape(gold_starts, [-1, 1])  
+        # gold_starts -> [1, 3, 5, 8, -1, -1, -1, -1]
         start_value = tf.reshape(tf.ones_like(gold_starts), [-1])
         start_shape = tf.constant([self.config["max_training_sentences"] * self.config["max_segment_len"]])
         gold_start_label = tf.cast(tf.scatter_nd(gold_start_label, start_value, start_shape), tf.int32)
@@ -184,9 +187,13 @@ class MentionProposalModel(object):
         # start_scores = tf.multiply(start_scores, start_end_loss_mask)
         # gold_start_label = tf.multiply(gold_start_label, start_end_loss_mask)
         #### 
+        # tf.nn.sigmoid_cross_entropy_with_logits( labels=None, logits=None, name=None)
 
-        start_loss = self.bce_loss(y_pred=start_scores, y_true=gold_start_label)
-        end_loss = self.bce_loss(y_pred=end_scores, y_true=gold_end_label)
+        span_loss = tf.reduce_mean(tf.multiply(tf.nn.sigmoid_cross_entropy_with_logits(labels=span_mention, logits=span_scores), span_mention_loss_mask))
+        start_loss = tf.reduce_mean(tf.multiply(tf.nn.sigmoid_cross_entropy_with_logits(labels=start_scores, logits=gold_start_label), start_end_loss_mask))
+        end_loss = tf.reduce_mean(tf.multiply(tf.nn.sigmoid_cross_entropy_with_logits(labels=end_scores, logits=gold_end_label), start_end_loss_mask))
+        # start_loss = self.bce_loss(y_pred=start_scores, y_true=gold_start_label)
+        # end_loss = self.bce_loss(y_pred=end_scores, y_true=gold_end_label)
         span_loss = self.bce_loss(y_pred=span_scores, y_true=span_mention)
 
         if span_mention is None :
