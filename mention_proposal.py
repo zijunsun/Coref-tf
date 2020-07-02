@@ -176,17 +176,17 @@ class MentionProposalModel(object):
         end_scores = tf.stack([(1 - end_scores), end_scores], axis=-1) 
         span_scores = tf.stack([(1 - span_scores), span_scores], axis=-1)
 
-        gold_start_label = tf.one_hot(tf.reshape(gold_start_label, [-1]), 2, axis=-1)
-        gold_end_label = tf.one_hot(tf.reshape(gold_start_label, [-1]), 2, axis=-1)
-        span_mention = tf.one_hot(tf.reshape(span_mention, [-1]), 2, axis=-1)
+        gold_start_label = tf.cast(tf.one_hot(tf.reshape(gold_start_label, [-1]), 2, axis=-1), tf.float32)
+        gold_end_label = tf.cast(tf.one_hot(tf.reshape(gold_start_label, [-1]), 2, axis=-1), tf.float32)
+        span_mention = tf.cast(tf.one_hot(tf.reshape(span_mention, [-1]), 2, axis=-1),tf.float32)
 
         # start_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=start_scores, labels=gold_start_label)) 
         # end_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=end_scores, labels=gold_end_label))
         # span_loss = tf.math.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=span_scores, labels=span_mention))
 
-        start_loss = self.bce_loss(y_pred=start_scores, y_true=tf.cast(gold_start_label, tf.float32))
-        end_loss = self.bce_loss(y_pred=end_scores, y_true=tf.cast(gold_end_label),tf.float32)）
-        span_loss = self.bce_loss(y_pred=span_scores, y_true=tf.cast(span_mention),tf.float32)）
+        start_loss = self.bce_loss(y_pred=start_scores, y_true=gold_start_label)
+        end_loss = self.bce_loss(y_pred=end_scores, y_true=gold_end_label)
+        span_loss = self.bce_loss(y_pred=span_scores, y_true=span_mention)
 
         if span_mention is None :
             loss = (start_loss + end_loss )/2  
