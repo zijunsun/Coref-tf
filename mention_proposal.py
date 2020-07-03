@@ -39,7 +39,6 @@ class MentionProposalModel(object):
         self.bert_config = modeling.BertConfig.from_json_file(config["bert_config_file"])
         self.bert_config.hidden_dropout_prob = self.config["dropout_rate"]
         self.tokenizer = tokenization.FullTokenizer(vocab_file=config['vocab_file'], do_lower_case=False)
-        self.bce_loss = tf.keras.losses.BinaryCrossentropy(reduction=tf.keras.losses.ReductionV2.NONE)
 
         input_props = []
         input_props.append((tf.int32, [None, None]))  # input_ids. (batch_size, seq_len)
@@ -58,7 +57,6 @@ class MentionProposalModel(object):
         queue = tf.PaddingFIFOQueue(capacity=10, dtypes=dtypes, shapes=shapes)  # 10是batch_size?
         self.enqueue_op = queue.enqueue(self.queue_input_tensors)
         self.input_tensors = queue.dequeue()  # self.queue_input_tensors 不一样？
-        self.bce_loss = tf.keras.losses.BinaryCrossentropy()
 
         if self.config["run"] == "session":
             self.loss, self.pred_start_scores, self.pred_end_scores = self.get_mention_proposal_and_loss(*self.input_tensors)
@@ -185,9 +183,10 @@ class MentionProposalModel(object):
         span_mention = tf.cast(tf.one_hot(tf.reshape(span_mention, [-1]), 2, axis=-1),tf.float32)
 
         start_end_loss_mask = tf.reshape(start_end_loss_mask, [-1])
-        start_loss = self.bce_loss(y_pred=start_scores, y_true=gold_start_label)
-        end_loss = self.bce_loss(y_pred=end_scores, y_true=gold_end_label)
-        span_loss = self.bce_loss(y_pred=span_scores, y_true=span_mention)
+        # true, pred 
+        start_loss = tf.keras.losses.binary_crossentropy(gold_start_label, start_scores,)
+        end_loss = tf.keras.losses.binary_crossentropy(gold_end_label, end_scores)
+        span_loss = tf.keras.losses.binary_crossentropy(span_mention, span_scores,)
 
         start_loss = tf.reduce_mean(tf.multiply(start_loss, tf.cast(start_end_loss_mask, tf.float32))) 
         end_loss = tf.reduce_mean(tf.multiply(end_loss, tf.cast(start_end_loss_mask, tf.float32))) 
