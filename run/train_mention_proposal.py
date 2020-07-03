@@ -118,13 +118,14 @@ def model_fn_builder(config):
             else:
                 optimizer = RAdam(learning_rate=config['bert_learning_rate'], epsilon=1e-8, beta1=0.9, beta2=0.999)
                 train_op = optimizer.minimize(total_loss, tf.train.get_global_step())
-        
-            # logging_hook = tf.train.LoggingTensorHook({"loss": total_loss}, every_n_iter=1)
+
+            logging_hook = tf.train.LoggingTensorHook({"loss": total_loss}, every_n_iter=1)
             output_spec = tf.contrib.tpu.TPUEstimatorSpec(
-                    mode=mode,
-                    loss=total_loss,
-                    train_op=train_op,
-                    scaffold_fn=scaffold_fn)
+                mode=mode,
+                loss=total_loss,
+                train_op=train_op,
+                training_hooks=[logging_hook],
+                scaffold_fn=scaffold_fn)
         else:
             total_loss, start_scores, end_scores, span_scores = model.get_mention_proposal_and_loss(input_ids, input_mask, \
                 text_len, speaker_ids, genre, is_training, gold_starts,
